@@ -109,6 +109,14 @@
 
           <button type="button" id="btn-resend" class="link-button" disabled>Resend code (45s)</button>
           <button type="button" id="btn-back" class="link-button secondary">Use a different phone/email</button>
+
+          <!-- Shown instead of the resend/back buttons above once the SMS trial cap is hit. -->
+          <div id="sms-trial-limit" class="trial-limit hidden">
+            <p class="trial-limit-text">
+              You've reached the SMS code limit for this number. Please use email instead to sign in.
+            </p>
+            <button type="button" id="btn-use-email" class="link-button">Use email instead</button>
+          </div>
         </form>
       </section>
 

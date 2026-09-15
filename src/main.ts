@@ -1,6 +1,7 @@
 import { ApiError, requestOtp, verifyOtp, type Identifier } from './api';
 
 type Mode = 'phone' | 'email';
+type SendResult = 'ok' | 'sms_trial_limit' | 'error';
 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 const PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
@@ -28,6 +29,8 @@ const verifyError = el<HTMLParagraphElement>('verify-error');
 const btnVerify = el<HTMLButtonElement>('btn-verify');
 const btnResend = el<HTMLButtonElement>('btn-resend');
 const btnBack = el<HTMLButtonElement>('btn-back');
+const smsTrialLimit = el<HTMLDivElement>('sms-trial-limit');
+const btnUseEmail = el<HTMLButtonElement>('btn-use-email');
 const doneMessage = el<HTMLParagraphElement>('done-message');
 
 let mode: Mode = 'phone';
@@ -88,15 +91,33 @@ function startResendCooldown() {
   }, 1000);
 }
 
-async function sendCode(identifier: Identifier): Promise<boolean> {
+function showSmsTrialLimitReached() {
+  if (resendTimer) {
+    clearInterval(resendTimer);
+    resendTimer = null;
+  }
+  btnResend.classList.add('hidden');
+  btnBack.classList.add('hidden');
+  smsTrialLimit.classList.remove('hidden');
+}
+
+/**
+ * Called on both the initial "Send code" and every "Resend" — the backend
+ * caps SMS at exactly 2 total sends per number (no such cap for email), so
+ * whichever click trips it gets the same handling.
+ */
+async function sendCode(identifier: Identifier): Promise<SendResult> {
   try {
     await requestOtp(identifier);
-    return true;
+    return 'ok';
   } catch (e) {
+    if (e instanceof ApiError && e.status === 429 && e.reason === 'SMS_TRIAL_LIMIT_REACHED') {
+      return 'sms_trial_limit';
+    }
     const message = e instanceof ApiError ? e.message : 'Something went wrong. Please try again.';
     identifierError.textContent = message;
     identifierError.classList.remove('hidden');
-    return false;
+    return 'error';
   }
 }
 
@@ -122,11 +143,24 @@ identifierForm.addEventListener('submit', async (event) => {
 
   const identifier: Identifier = { type: mode, value: rawValue };
   setButtonLoading(btnSendCode, true);
-  const ok = await sendCode(identifier);
+  const result = await sendCode(identifier);
   setButtonLoading(btnSendCode, false);
-  if (!ok) return;
+
+  if (result === 'sms_trial_limit') {
+    // Reached the cap on the very first send (e.g. a previous session
+    // already used both trials) — send them straight to email instead of
+    // a verify screen they can't do anything useful on.
+    setMode('email');
+    identifierError.textContent = "You've reached the SMS code limit for this number. Please use email instead.";
+    identifierError.classList.remove('hidden');
+    return;
+  }
+  if (result !== 'ok') return;
 
   pendingIdentifier = identifier;
+  btnResend.classList.remove('hidden');
+  btnBack.classList.remove('hidden');
+  smsTrialLimit.classList.add('hidden');
   verifySubtitle.textContent = `We sent a 6-digit code to ${maskIdentifier(rawValue)}.`;
   inputCode.value = '';
   verifyError.classList.add('hidden');
@@ -165,15 +199,27 @@ verifyForm.addEventListener('submit', async (event) => {
 btnResend.addEventListener('click', async () => {
   if (!pendingIdentifier || btnResend.disabled) return;
   verifyError.classList.add('hidden');
-  const ok = await sendCode(pendingIdentifier);
-  if (ok) {
+  const result = await sendCode(pendingIdentifier);
+  if (result === 'ok') {
     startResendCooldown();
+  } else if (result === 'sms_trial_limit') {
+    showSmsTrialLimitReached();
   } else {
     // requestOtp's error lands in identifierError (shared helper) — mirror
     // it here since that field isn't visible on this step.
     verifyError.textContent = identifierError.textContent;
     verifyError.classList.remove('hidden');
   }
+});
+
+btnUseEmail.addEventListener('click', () => {
+  pendingIdentifier = null;
+  smsTrialLimit.classList.add('hidden');
+  btnResend.classList.remove('hidden');
+  btnBack.classList.remove('hidden');
+  setMode('email');
+  showStep('identifier');
+  inputEmail.focus();
 });
 
 btnBack.addEventListener('click', () => {

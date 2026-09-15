@@ -12,7 +12,8 @@ const REQUEST_TIMEOUT_MS = 20000;
 export class ApiError extends Error {
   constructor(
     message: string,
-    public status: number
+    public status: number,
+    public reason?: string
   ) {
     super(message);
   }
@@ -40,7 +41,14 @@ async function apiFetch<T>(path: string, body: unknown): Promise<T> {
   }
 
   if (response.status === 429) {
-    throw new ApiError('Too many attempts — please wait a bit before trying again.', 429);
+    const bodyText = await response.text();
+    let reason: string | undefined;
+    try {
+      reason = bodyText ? (JSON.parse(bodyText) as { reason?: string }).reason : undefined;
+    } catch {
+      reason = undefined;
+    }
+    throw new ApiError('Too many attempts — please wait a bit before trying again.', 429, reason);
   }
   if (!response.ok) {
     throw new ApiError('Something went wrong. Please check your details and try again.', response.status);

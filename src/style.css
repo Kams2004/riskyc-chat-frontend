@@ -225,6 +225,18 @@ body {
   padding-top: 6px;
 }
 
+.trial-limit {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.trial-limit-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--error);
+  margin: 0 0 8px;
+}
+
 .success-icon {
   width: 56px;
   height: 56px;
