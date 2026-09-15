@@ -1,0 +1,11 @@
+# Standalone, like backend/docker-compose.yml — Compose scopes this to its
+# own project (named after this directory, e.g. "riskyc-chat-web" once
+# cloned onto the VPS), so it can't collide with or cross-talk to any other
+# stack already running there. Port 8085 was picked because it's free on
+# the target VPS — see backend/.env.example's port survey if deploying
+# somewhere else with a different set of ports already taken.
+services:
+  web:
+    build: .
+    ports:
+      - "${WEB_HOST_PORT:-8085}:80"

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%23ff1a5e'/%3E%3Ctext x='12' y='17' font-family='serif' font-weight='700' font-size='13' fill='white' text-anchor='middle'%3ERC%3C/text%3E%3C/svg%3E"
+    />
+    <meta name="description" content="Sign in to RiskyC Chat with your phone number or email." />
+    <meta name="robots" content="noindex" />
+    <!--
+      Content-Security-Policy as a meta tag is defense-in-depth only — the
+      real enforcement belongs in the server's response headers (see
+      web/nginx.conf), since a meta CSP can't set frame-ancestors or report-uri
+      and only applies after the HTML itself has already parsed.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; connect-src 'self' http://localhost:8081 http://167.86.120.214:8091; img-src 'self' data:; script-src 'self'; base-uri 'none'; form-action 'self'"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+    <title>RiskyC Chat — Sign in</title>
+  </head>
+  <body>
+    <main class="card" id="card">
+      <div class="brand">
+        <div class="logo">RC</div>
+        <span class="wordmark">RiskyC <em>Chat</em></span>
+      </div>
+
+      <!-- Step 1: identifier entry -->
+      <section id="step-identifier" class="step">
+        <h1 id="title">Enter your phone number</h1>
+        <p class="subtitle">RiskyC Chat will send a verification code to confirm it's you.</p>
+
+        <div class="toggle-row" role="tablist" aria-label="Sign-in method">
+          <button type="button" class="toggle-tab active" id="tab-phone" role="tab" aria-selected="true">Phone</button>
+          <button type="button" class="toggle-tab" id="tab-email" role="tab" aria-selected="false">Email</button>
+        </div>
+
+        <form id="identifier-form" novalidate>
+          <input
+            type="tel"
+            id="input-phone"
+            class="input"
+            placeholder="+237 6XX XXX XXX"
+            autocomplete="tel"
+            inputmode="tel"
+          />
+          <input
+            type="email"
+            id="input-email"
+            class="input hidden"
+            placeholder="you@example.com"
+            autocomplete="email"
+          />
+
+          <!--
+            Honeypot: a field real users never see or fill (offscreen, not
+            display:none — some bots skip display:none fields specifically
+            because it's the well-known trick, so this uses an offscreen
+            position instead) and no autocomplete hint that would suggest a
+            browser fill it in. A bot's generic form-filler usually fills
+            every input it finds; a human never does, since they can't see it.
+          -->
+          <div class="honeypot" aria-hidden="true">
+            <label for="input-company">Company</label>
+            <input type="text" id="input-company" name="company" tabindex="-1" autocomplete="off" />
+          </div>
+
+          <p id="identifier-error" class="error hidden"></p>
+
+          <button type="submit" id="btn-send-code" class="button">
+            <span class="button-label">Send code</span>
+            <span class="spinner hidden" aria-hidden="true"></span>
+          </button>
+        </form>
+      </section>
+
+      <!-- Step 2: OTP verification -->
+      <section id="step-verify" class="step hidden">
+        <h1>Enter the code</h1>
+        <p class="subtitle" id="verify-subtitle">We sent a 6-digit code — enter it below.</p>
+
+        <form id="verify-form" novalidate>
+          <input
+            type="text"
+            id="input-code"
+            class="input code-input"
+            placeholder="000000"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+          />
+
+          <p id="verify-error" class="error hidden"></p>
+
+          <button type="submit" id="btn-verify" class="button">
+            <span class="button-label">Verify</span>
+            <span class="spinner hidden" aria-hidden="true"></span>
+          </button>
+
+          <button type="button" id="btn-resend" class="link-button" disabled>Resend code (45s)</button>
+          <button type="button" id="btn-back" class="link-button secondary">Use a different phone/email</button>
+        </form>
+      </section>
+
+      <!-- Step 3: signed in -->
+      <section id="step-done" class="step hidden">
+        <div class="success-icon" aria-hidden="true">✓</div>
+        <h1>You're signed in</h1>
+        <p class="subtitle" id="done-message">Open the RiskyC Chat app on your phone to start chatting.</p>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
