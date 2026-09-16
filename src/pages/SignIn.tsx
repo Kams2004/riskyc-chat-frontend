@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import * as authApi from '../features/auth/api';
 import { useAuth } from '../features/auth/AuthContext';
+import type { VerifyOtpResponse } from '../features/auth/api';
 import { maskIdentifier } from '../lib/mask';
 import { ApiError } from '../lib/httpClient';
 
@@ -17,7 +18,7 @@ const CODE_LENGTH = 6;
 /** React port of the original vanilla-TS sign-in flow (same OTP request/verify logic), now feeding a real session via AuthContext instead of a static "open the app" screen. */
 export function SignInPage() {
   const navigate = useNavigate();
-  const { signInWithOtp } = useAuth();
+  const { signInWithOtp, completeSystemLogin } = useAuth();
 
   const [mode, setMode] = useState<Mode>('phone');
   const [step, setStep] = useState<Step>('identifier');
@@ -47,10 +48,10 @@ export function SignInPage() {
     if (step === 'verify') codeInputRef.current?.focus();
   }, [step]);
 
-  async function sendCode(): Promise<'ok' | 'sms_trial_limit' | 'error'> {
+  async function sendCode(): Promise<'ok' | 'sms_trial_limit' | 'error' | { immediate: VerifyOtpResponse }> {
     try {
-      await authApi.requestOtp({ type: mode, value });
-      return 'ok';
+      const immediate = await authApi.requestOtp({ type: mode, value });
+      return immediate ? { immediate } : 'ok';
     } catch (e) {
       if (e instanceof ApiError && e.status === 429 && (e.body as { reason?: string } | undefined)?.reason === 'SMS_TRIAL_LIMIT_REACHED') {
         return 'sms_trial_limit';
@@ -81,6 +82,15 @@ export function SignInPage() {
     const result = await sendCode();
     setIsSending(false);
 
+    if (typeof result === 'object') {
+      // System-account access identifier — see requestOtp's doc comment. No
+      // code was sent, so there's nothing to verify; sign in directly.
+      completeSystemLogin(result.immediate);
+      setDoneMessage('Signed in.');
+      setStep('done');
+      setTimeout(() => navigate('/chats', { replace: true }), 600);
+      return;
+    }
     if (result === 'sms_trial_limit') {
       setMode('email');
       setIdentifierError("You've reached the SMS code limit for this number. Please use email instead.");
