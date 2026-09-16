@@ -44,7 +44,7 @@ async function resolve(summary: ConversationSummary, myUserId: string): Promise<
     } else {
       const otherId = summary.otherUserId ?? otherPartyFrom(summary.conversationId, myUserId);
       const user = await getUser(otherId);
-      title = user.displayName || UNRESOLVED_TITLE_PLACEHOLDER;
+      title = user.displayName || user.phoneNumber || UNRESOLVED_TITLE_PLACEHOLDER;
       avatarObjectKey = user.avatarObjectKey;
     }
     nameCache.set(summary.conversationId, { title, avatarObjectKey });

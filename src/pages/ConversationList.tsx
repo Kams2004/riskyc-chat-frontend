@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
 import { useAuth } from '../features/auth/AuthContext';
 import { useConversationList } from '../features/messaging/useConversationList';
+import { useInboxSocket } from '../features/messaging/useInboxSocket';
 import type { ReplyToDraft } from '../features/messaging/useConversation';
 import { ConversationThreadPage } from './ConversationThread';
 
@@ -36,8 +37,12 @@ function formatListTime(iso: string): string {
  * right pane when a thread is selected.
  */
 export function ConversationListPage() {
-  const { userId, displayName, avatarObjectKey, signOut } = useAuth();
+  const { userId, accessToken, displayName, avatarObjectKey, signOut } = useAuth();
   const { conversations, isLoading, reload } = useConversationList(userId);
+  // Keeps the list itself live for messages arriving in any conversation,
+  // not just the one currently open (which handles its own live updates via
+  // ConversationThread's own subscription) — see useInboxSocket's comment.
+  useInboxSocket(accessToken, reload);
   const navigate = useNavigate();
   const location = useLocation();
   const { conversationId } = useParams<{ conversationId?: string }>();
