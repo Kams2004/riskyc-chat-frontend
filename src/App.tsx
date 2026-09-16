@@ -1,6 +1,9 @@
 import { Navigate, Route, BrowserRouter, Routes } from 'react-router-dom';
 
 import { AuthProvider, useAuth } from './features/auth/AuthContext';
+import { GroupCallProvider } from './features/calls/GroupCallContext';
+import { GroupCallOverlay } from './components/GroupCallOverlay';
+import { IncomingGroupCallBanner } from './components/IncomingGroupCallBanner';
 import { TabLockGate } from './components/TabLockGate';
 import { ThemeProvider } from './lib/ThemeContext';
 import { AccountPage } from './pages/Account';
@@ -119,9 +122,14 @@ export function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <GroupCallProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+          {/* App-root, not a route — survives navigation, same as mobile's _layout.tsx mounting. */}
+          <IncomingGroupCallBanner />
+          <GroupCallOverlay />
+        </GroupCallProvider>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -46,7 +46,12 @@ export function ConversationListPage() {
   const navState = location.state as NavState | null;
 
   return (
-    <div className="app-shell">
+    // has-active-conversation drives the mobile-width layout swap (see
+    // index.css's media query) — narrow viewports show either the sidebar
+    // OR the thread full-width, never both squeezed together, matching how
+    // a real mobile chat client behaves rather than the old 40vh-sidebar
+    // stack that left neither pane usable.
+    <div className={`app-shell ${conversationId ? 'has-active-conversation' : ''}`}>
       <aside className="sidebar">
         <div className="sidebar-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

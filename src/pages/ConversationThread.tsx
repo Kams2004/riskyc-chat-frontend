@@ -5,6 +5,7 @@ import { Avatar } from '../components/Avatar';
 import { MediaViewer } from '../components/MediaViewer';
 import { MessageAttachmentGrid } from '../components/MessageAttachmentGrid';
 import { useAuth } from '../features/auth/AuthContext';
+import { useGroupCall } from '../features/calls/GroupCallContext';
 import { forwardMessage } from '../features/messaging/forward';
 import { conversationIdFor, UNRESOLVED_PERSON_PLACEHOLDER } from '../features/messaging/conversationId';
 import type { AttachmentItem, MessageEnvelope } from '../features/messaging/api';
@@ -52,6 +53,7 @@ export function ConversationThreadPage({
   onMessageSent,
 }: Props) {
   const { userId, accessToken } = useAuth();
+  const { startGroupCall } = useGroupCall();
   const { messages, sendMessage, editMessage, deleteMessage, pinMessage, typingUserIds, notifyTyping } = useConversation({
     conversationId,
     recipientId,
@@ -279,6 +281,12 @@ export function ConversationThreadPage({
   return (
     <div className="main-panel">
       <div className="thread-header">
+        {/* Only visible at mobile widths (see index.css's media query) — the
+            two-pane layout doesn't need it, but a full-width mobile thread
+            view has no other way back to the conversation list. */}
+        <button className="icon-button mobile-back-button" onClick={() => navigate('/chats')} title="Back to chats">
+          ←
+        </button>
         <div onClick={goToContact} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}>
           <Avatar label={title} objectKey={avatarObjectKey} size={40} />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -286,6 +294,24 @@ export function ConversationThreadPage({
             <div className="thread-header-status">{typingLabel || (isGroup ? 'Group' : '')}</div>
           </div>
         </div>
+        {isGroup && groupId && (
+          <>
+            <button
+              className="icon-button"
+              title="Start audio call"
+              onClick={() => void startGroupCall(groupId, title, Object.keys(memberNames).filter((id) => id !== userId), 'AUDIO')}
+            >
+              📞
+            </button>
+            <button
+              className="icon-button"
+              title="Start video call"
+              onClick={() => void startGroupCall(groupId, title, Object.keys(memberNames).filter((id) => id !== userId), 'VIDEO')}
+            >
+              🎥
+            </button>
+          </>
+        )}
         <div style={{ position: 'relative' }}>
           <button className="icon-button" onClick={() => setOverflowOpen((v) => !v)} title="More">
             ⋮
@@ -517,6 +543,7 @@ function ForwardPickerModal({
       onClick={onClose}
     >
       <div
+        className="modal-card"
         style={{ background: 'var(--surface)', borderRadius: 16, padding: 20, width: 340, maxHeight: '70vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
