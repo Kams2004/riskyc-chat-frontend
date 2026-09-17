@@ -12,6 +12,7 @@ import { ContactDetailsPage } from './pages/ContactDetails';
 import { ConversationListPage } from './pages/ConversationList';
 import { DevicesPage } from './pages/Devices';
 import { InvitePage } from './pages/Invite';
+import { PermissionsPage } from './pages/Permissions';
 import { MediaLinksDocsPage } from './pages/MediaLinksDocs';
 import { SearchInChatPage } from './pages/SearchInChat';
 import { NewChatPage } from './pages/NewChat';
@@ -41,6 +42,7 @@ function AppRoutes() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/invite" element={<InvitePage />} />
+      <Route path="/permissions" element={<PermissionsPage />} />
       <Route
         path="/chats/new"
         element={
