@@ -31,9 +31,13 @@ export type VerifyOtpResponse = {
   phoneNumber: string | null;
 };
 
+// platform: 'web' (as opposed to mobile's 'mobile') is purely for the
+// Session table's own record-keeping — web is deliberately exempt from
+// auth-service's one-active-mobile-session-per-account rule either way, see
+// AuthController.OtpVerifyRequest's own doc comment.
 export function verifyOtp(identifier: Identifier, code: string, deviceLabel?: string | null): Promise<VerifyOtpResponse> {
   return apiFetch(`${config.authServiceUrl}/api/auth/otp/verify`, {
     method: 'POST',
-    body: JSON.stringify({ ...identifierBody(identifier), code, deviceLabel }),
+    body: JSON.stringify({ ...identifierBody(identifier), code, deviceLabel, platform: 'web' }),
   });
 }
