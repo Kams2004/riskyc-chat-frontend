@@ -7,7 +7,7 @@ import { getCommonGroups, type GroupResult } from '../features/groups/api';
 import { getMediaSummary, searchInConversation, type MediaSummaryItem, type SearchResult } from '../features/messaging/api';
 import { blockUser, getUser, listBlockedUsers, reportUser, unblockUser, type UserResult } from '../features/users/api';
 
-export type InfoPanelView = 'contact' | 'media' | 'search';
+export type InfoPanelView = 'contact' | 'media';
 
 const URL_PATTERN = /https?:\/\/[^\s]+/g;
 
@@ -231,49 +231,9 @@ function MediaView({ conversationId }: { conversationId: string }) {
   );
 }
 
-function SearchView({ conversationId }: { conversationId: string }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
-    setIsSearching(true);
-    const timer = setTimeout(() => {
-      searchInConversation(conversationId, query.trim())
-        .then(setResults)
-        .catch(() => setResults([]))
-        .finally(() => setIsSearching(false));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [conversationId, query]);
-
-  function formatTime(iso: string): string {
-    return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  }
-
-  return (
-    <>
-      <input className="input" placeholder="Search messages" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
-      {isSearching && <p style={{ color: 'var(--text-muted)', marginTop: 16 }}>Searching…</p>}
-      {!isSearching && query.trim() && results.length === 0 && <p style={{ color: 'var(--text-muted)', marginTop: 16 }}>No messages found.</p>}
-      {results.map((r) => (
-        <div key={r.messageId} className="settings-row">
-          <p style={{ margin: 0 }}>{r.ciphertext}</p>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>{formatTime(r.sentAt)}</p>
-        </div>
-      ))}
-    </>
-  );
-}
-
 const VIEW_TITLE: Record<InfoPanelView, string> = {
   contact: 'Contact info',
   media: 'Media, links, and docs',
-  search: 'Search in this conversation',
 };
 
 /**
@@ -288,11 +248,14 @@ export function InfoPanel({
   recipientId,
   initialView,
   onClose,
+  onOpenSearch,
 }: {
   conversationId: string;
   recipientId?: string;
   initialView: InfoPanelView;
   onClose: () => void;
+  /** Search now happens inline in the thread itself (see ConversationThread's own search bar), not as a panel view — this closes the panel and opens that instead. */
+  onOpenSearch: () => void;
 }) {
   const [view, setView] = useState<InfoPanelView>(initialView);
   const [history, setHistory] = useState<InfoPanelView[]>([]);
@@ -339,11 +302,10 @@ export function InfoPanel({
             conversationId={conversationId}
             recipientId={recipientId}
             onOpenMedia={() => push('media')}
-            onOpenSearch={() => push('search')}
+            onOpenSearch={onOpenSearch}
           />
         )}
         {view === 'media' && <MediaView conversationId={conversationId} />}
-        {view === 'search' && <SearchView conversationId={conversationId} />}
       </div>
     </aside>
   );

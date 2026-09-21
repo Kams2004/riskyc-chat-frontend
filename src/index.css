@@ -398,6 +398,73 @@ h1.step-title {
   color: var(--text-muted);
 }
 
+.conversation-row-favorite {
+  border: none;
+  background: none;
+  color: var(--gold-500, #e6b800);
+  font-size: 15px;
+  cursor: pointer;
+  opacity: 0;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.conversation-row:hover .conversation-row-favorite {
+  opacity: 1;
+}
+
+.conversation-row-unread-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--brand-500);
+}
+
+.sidebar-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 14px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--tint1);
+  color: var(--text-muted);
+}
+
+.sidebar-search-input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 13.5px;
+  color: var(--text-primary);
+}
+
+.sidebar-filter-row {
+  display: flex;
+  gap: 8px;
+  padding: 4px 14px 10px;
+  overflow-x: auto;
+}
+
+.sidebar-filter-pill {
+  flex-shrink: 0;
+  border: 1px solid var(--hairline);
+  background: none;
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.sidebar-filter-pill.active {
+  background: var(--tint2);
+  border-color: var(--brand-500);
+  color: var(--brand-700);
+  font-weight: 600;
+}
+
 .icon-button {
   width: 36px;
   height: 36px;
@@ -439,6 +506,21 @@ h1.step-title {
 .thread-header-status {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.thread-search-input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 14.5px;
+  color: var(--text-primary);
+}
+
+.thread-search-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .thread-body {
@@ -710,7 +792,7 @@ h1.step-title {
 .icon-rail {
   width: 72px;
   flex-shrink: 0;
-  background: var(--surface);
+  background: var(--tint1);
   border-right: 1px solid var(--hairline);
   display: flex;
   flex-direction: column;
@@ -1822,7 +1904,29 @@ h1.step-title {
   .app-shell:not(.has-active-conversation) .main-panel {
     display: none;
   }
+  /* .icon-rail's 72px width is meant for the row-direction desktop layout —
+     left as-is here it renders as a narrow floating box with a large empty
+     gap beside it once .app-shell switches to column direction above, since
+     width becomes the CROSS axis instead of a horizontal-row main-axis
+     sizing. Converted into a full-width horizontal strip at the top of the
+     stack instead, hidden entirely once a conversation (or the info panel)
+     is open so the thread gets the full narrow viewport. */
+  .icon-rail {
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 8px 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .icon-rail-spacer {
+    display: none;
+  }
   .app-shell.has-active-conversation .icon-rail {
+    display: none;
+  }
+  .app-shell:has(.info-panel) .icon-rail {
     display: none;
   }
   .main-panel {

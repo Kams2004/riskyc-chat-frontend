@@ -18,13 +18,14 @@ import { useCall } from '../features/calls/CallContext';
 import { useGroupCall } from '../features/calls/GroupCallContext';
 import { forwardMessage } from '../features/messaging/forward';
 import { conversationIdFor, UNRESOLVED_PERSON_PLACEHOLDER } from '../features/messaging/conversationId';
-import type { AttachmentItem, MessageEnvelope } from '../features/messaging/api';
+import { searchInConversation, type AttachmentItem, type MessageEnvelope, type SearchResult } from '../features/messaging/api';
 import { useConversation, type ReplyToDraft } from '../features/messaging/useConversation';
 import { useConversationList } from '../features/messaging/useConversationList';
 import { uploadMedia } from '../features/media/api';
 import { blockUser, getUser, reportUser } from '../features/users/api';
 import { getGroup } from '../features/groups/api';
 import { isStarred, star, unstar } from '../lib/starredMessages';
+import { markConversationViewed } from '../lib/conversationPrefs';
 import { useWallpaperVariant } from '../lib/wallpaper';
 
 const DISAPPEARING_OPTIONS: { label: string; seconds: number | null }[] = [
@@ -110,6 +111,11 @@ export function ConversationThreadPage({
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [disappearingPickerOpen, setDisappearingPickerOpen] = useState(false);
   const [infoPanelView, setInfoPanelView] = useState<InfoPanelView | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchIndex, setSearchIndex] = useState(0);
+  const [isSearching, setIsSearching] = useState(false);
   const [replyDraft, setReplyDraft] = useState<ReplyToDraft | null>(initialReplyDraft ?? null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
@@ -143,7 +149,19 @@ export function ConversationThreadPage({
   // would otherwise render nothing useful.
   useEffect(() => {
     setInfoPanelView(null);
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchIndex(0);
   }, [conversationId]);
+
+  // Marks this device's own "last viewed" point for the conversation-list's
+  // client-only Unread filter (see lib/conversationPrefs.ts) — re-marked on
+  // every new message too, since staying on an open thread should keep it
+  // out of Unread rather than needing a re-visit to clear.
+  useEffect(() => {
+    markConversationViewed(conversationId);
+  }, [conversationId, messages.length]);
 
   // Seeds the starred set from localStorage once, from whatever's currently
   // loaded — new messages arriving afterward are never pre-starred, so
@@ -210,6 +228,44 @@ export function ConversationThreadPage({
       return;
     }
     navigate(`/chats/${targetConversationId}`, { state: { scrollToMessageId: messageId } });
+  }
+
+  // Inline in-thread search (replaces InfoPanel's old separate search view,
+  // per the user's ask: results should be found "where the message is in
+  // the conversation", not in a side list) — debounced fetch, then up/down
+  // steps through matches reusing navigateToMessage's own scroll+highlight.
+  useEffect(() => {
+    if (!searchOpen || !searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      searchInConversation(conversationId, searchQuery.trim())
+        .then((results) => {
+          setSearchResults(results);
+          setSearchIndex(0);
+          if (results.length > 0) navigateToMessage(conversationId, results[0].messageId);
+        })
+        .catch(() => setSearchResults([]))
+        .finally(() => setIsSearching(false));
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchOpen, searchQuery, conversationId]);
+
+  function closeSearch() {
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchIndex(0);
+  }
+
+  function stepSearch(delta: number) {
+    if (searchResults.length === 0) return;
+    const next = (searchIndex + delta + searchResults.length) % searchResults.length;
+    setSearchIndex(next);
+    navigateToMessage(conversationId, searchResults[next].messageId);
   }
 
   // Jumps to (and briefly highlights) a message once its history has loaded
@@ -407,6 +463,34 @@ export function ConversationThreadPage({
     <>
     <div className="main-panel">
       <div className="thread-header">
+        {searchOpen ? (
+          <>
+            <button className="icon-button" title="Close search" onClick={closeSearch}>
+              ←
+            </button>
+            <input
+              className="thread-search-input"
+              placeholder="Search this conversation"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') stepSearch(e.shiftKey ? -1 : 1);
+                if (e.key === 'Escape') closeSearch();
+              }}
+            />
+            <span className="thread-search-count">
+              {isSearching ? '…' : searchResults.length > 0 ? `${searchIndex + 1}/${searchResults.length}` : searchQuery.trim() ? '0/0' : ''}
+            </span>
+            <button className="icon-button" title="Previous match" onClick={() => stepSearch(-1)} disabled={searchResults.length === 0}>
+              ↑
+            </button>
+            <button className="icon-button" title="Next match" onClick={() => stepSearch(1)} disabled={searchResults.length === 0}>
+              ↓
+            </button>
+          </>
+        ) : (
+          <>
         {/* Only visible at mobile widths (see index.css's media query) — the
             two-pane layout doesn't need it, but a full-width mobile thread
             view has no other way back to the conversation list. */}
@@ -448,6 +532,9 @@ export function ConversationThreadPage({
             </button>
           </>
         )}
+        <button className="icon-button" title="Search this conversation" onClick={() => setSearchOpen(true)}>
+          🔍
+        </button>
         <div style={{ position: 'relative' }}>
           <button className="icon-button" onClick={() => setOverflowOpen((v) => !v)} title="More">
             ⋮
@@ -456,7 +543,7 @@ export function ConversationThreadPage({
             <div className="bubble-menu" style={{ top: '110%', right: 0 }} onMouseLeave={() => setOverflowOpen(false)}>
               <button onClick={() => { setOverflowOpen(false); navigate('/chats/new'); }}>New chat</button>
               <button onClick={() => { setOverflowOpen(false); goToContact(); }}>{isGroup ? 'Group info' : 'View contact'}</button>
-              <button onClick={() => { setOverflowOpen(false); setInfoPanelView('search'); }}>Search</button>
+              <button onClick={() => { setOverflowOpen(false); setSearchOpen(true); }}>Search</button>
               <button onClick={() => { setOverflowOpen(false); setInfoPanelView('media'); }}>Media, links, and docs</button>
               <button onClick={() => { setMuted(!muted); setOverflowOpen(false); }}>{muted ? 'Unmute notifications' : 'Mute notifications'}</button>
               <button onClick={() => { setDisappearingPickerOpen(true); setOverflowOpen(false); }}>Disappearing messages</button>
@@ -477,6 +564,8 @@ export function ConversationThreadPage({
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {pinnedMessage && (
@@ -789,6 +878,10 @@ export function ConversationThreadPage({
         recipientId={recipientId}
         initialView={infoPanelView}
         onClose={() => setInfoPanelView(null)}
+        onOpenSearch={() => {
+          setInfoPanelView(null);
+          setSearchOpen(true);
+        }}
       />
     )}
     </>

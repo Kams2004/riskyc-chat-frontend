@@ -1,12 +1,16 @@
+import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
 import { IconRail } from '../components/IconRail';
 import { useAuth } from '../features/auth/AuthContext';
-import { useConversationList } from '../features/messaging/useConversationList';
+import { useConversationList, type ConversationListItem } from '../features/messaging/useConversationList';
 import { useInboxSocket } from '../features/messaging/useInboxSocket';
 import type { ReplyToDraft } from '../features/messaging/useConversation';
+import { isFavorite, isUnread, toggleFavorite } from '../lib/conversationPrefs';
 import { ConversationThreadPage } from './ConversationThread';
+
+type ListFilter = 'all' | 'unread' | 'favorites' | 'groups';
 
 /**
  * Set by NewChatPage when starting a brand-new 1:1 thread that has no
@@ -48,8 +52,31 @@ export function ConversationListPage() {
   const location = useLocation();
   const { conversationId } = useParams<{ conversationId?: string }>();
 
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<ListFilter>('all');
+  // Bumped on every favorite toggle so the 'favorites' filter re-derives —
+  // isFavorite() reads localStorage directly, not React state.
+  const [favoritesTick, setFavoritesTick] = useState(0);
+
   const activeConversation = conversations.find((c) => c.conversationId === conversationId);
   const navState = location.state as NavState | null;
+
+  const filtered = useMemo(() => {
+    let list = conversations;
+    const q = query.trim().toLowerCase();
+    if (q) list = list.filter((c) => c.title.toLowerCase().includes(q));
+    if (filter === 'unread') list = list.filter((c) => isUnread(c.conversationId, c.lastMessageAt));
+    else if (filter === 'favorites') list = list.filter((c) => isFavorite(c.conversationId));
+    else if (filter === 'groups') list = list.filter((c) => c.isGroup);
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, query, filter, favoritesTick]);
+
+  function handleToggleFavorite(e: React.MouseEvent, c: ConversationListItem) {
+    e.stopPropagation();
+    toggleFavorite(c.conversationId);
+    setFavoritesTick((v) => v + 1);
+  }
 
   return (
     // has-active-conversation drives the mobile-width layout swap (see
@@ -67,26 +94,74 @@ export function ConversationListPage() {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="icon-button" title="New chat" onClick={() => navigate('/chats/new')}>
-              +
+              <svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5" />
+                <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
+              </svg>
             </button>
           </div>
         </div>
+
+        <div className="sidebar-search-row">
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <circle cx={11} cy={11} r={7} />
+            <path d="M21 21l-4.3-4.3" />
+          </svg>
+          <input
+            className="sidebar-search-input"
+            placeholder="Search or start a new chat"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="sidebar-filter-row">
+          {(['all', 'unread', 'favorites', 'groups'] as ListFilter[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={`sidebar-filter-pill ${filter === f ? 'active' : ''}`}
+              onClick={() => setFilter(f)}
+            >
+              {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : f === 'favorites' ? 'Favourites' : 'Groups'}
+            </button>
+          ))}
+        </div>
+
         <div className="sidebar-list">
           {isLoading && conversations.length === 0 && <p style={{ padding: 18, color: 'var(--text-muted)' }}>Loading…</p>}
-          {!isLoading && conversations.length === 0 && (
-            <p style={{ padding: 18, color: 'var(--text-muted)' }}>No conversations yet — start one.</p>
+          {!isLoading && filtered.length === 0 && (
+            <p style={{ padding: 18, color: 'var(--text-muted)' }}>
+              {conversations.length === 0 ? 'No conversations yet — start one.' : 'No matches.'}
+            </p>
           )}
-          {conversations.map((c) => (
-            <div
-              key={c.conversationId}
-              className={`conversation-row ${c.conversationId === conversationId ? 'active' : ''}`}
-              onClick={() => navigate(`/chats/${c.conversationId}`)}
-            >
-              <Avatar label={c.title} objectKey={c.avatarObjectKey} size={44} />
-              <div className="conversation-row-title">{c.title}</div>
-              <span className="conversation-row-time">{formatListTime(c.lastMessageAt)}</span>
-            </div>
-          ))}
+          {filtered.map((c) => {
+            const unread = isUnread(c.conversationId, c.lastMessageAt);
+            const favorited = isFavorite(c.conversationId);
+            return (
+              <div
+                key={c.conversationId}
+                className={`conversation-row ${c.conversationId === conversationId ? 'active' : ''}`}
+                onClick={() => navigate(`/chats/${c.conversationId}`)}
+              >
+                <Avatar label={c.title} objectKey={c.avatarObjectKey} size={44} />
+                <div className="conversation-row-title" style={unread ? { fontWeight: 700 } : undefined}>
+                  {c.title}
+                </div>
+                <button
+                  className="conversation-row-favorite"
+                  title={favorited ? 'Remove from favourites' : 'Add to favourites'}
+                  onClick={(e) => handleToggleFavorite(e, c)}
+                >
+                  {favorited ? '★' : '☆'}
+                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <span className="conversation-row-time">{formatListTime(c.lastMessageAt)}</span>
+                  {unread && <span className="conversation-row-unread-dot" />}
+                </div>
+              </div>
+            );
+          })}
         </div>
         <div style={{ padding: 12, borderTop: '1px solid var(--hairline)' }}>
           <button
