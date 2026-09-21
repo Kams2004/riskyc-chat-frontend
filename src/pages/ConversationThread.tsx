@@ -7,12 +7,14 @@ import { FileAttachmentRow } from '../components/FileAttachmentRow';
 import { firstUrlIn, LinkPreviewCard } from '../components/LinkPreviewCard';
 import { MediaViewer } from '../components/MediaViewer';
 import { MessageAttachmentGrid } from '../components/MessageAttachmentGrid';
+import { InfoPanel, type InfoPanelView } from '../components/InfoPanel';
 import { MessageInfoModal } from '../components/MessageInfoModal';
 import { MessageTicks } from '../components/MessageTicks';
 import { ReactionPicker, ReactionPills } from '../components/ReactionBar';
 import { VoiceMessagePlayer } from '../components/VoiceMessagePlayer';
 import { VoiceRecorderButton } from '../components/VoiceRecorderButton';
 import { useAuth } from '../features/auth/AuthContext';
+import { useCall } from '../features/calls/CallContext';
 import { useGroupCall } from '../features/calls/GroupCallContext';
 import { forwardMessage } from '../features/messaging/forward';
 import { conversationIdFor, UNRESOLVED_PERSON_PLACEHOLDER } from '../features/messaging/conversationId';
@@ -71,6 +73,7 @@ export function ConversationThreadPage({
 }: Props) {
   const { userId, accessToken } = useAuth();
   const { startGroupCall } = useGroupCall();
+  const { startCall } = useCall();
   const {
     messages,
     sendMessage,
@@ -106,6 +109,7 @@ export function ConversationThreadPage({
   const [viewer, setViewer] = useState<{ items: AttachmentItem[]; index: number } | null>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [disappearingPickerOpen, setDisappearingPickerOpen] = useState(false);
+  const [infoPanelView, setInfoPanelView] = useState<InfoPanelView | null>(null);
   const [replyDraft, setReplyDraft] = useState<ReplyToDraft | null>(initialReplyDraft ?? null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
@@ -132,6 +136,14 @@ export function ConversationThreadPage({
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
   }, [messages.length]);
+
+  // Closes the info panel on a conversation switch — its contents (contact
+  // id, media, search results) are conversation-specific, and keeping a
+  // stale 'contact' view open pointed at a group with no single recipientId
+  // would otherwise render nothing useful.
+  useEffect(() => {
+    setInfoPanelView(null);
+  }, [conversationId]);
 
   // Seeds the starred set from localStorage once, from whatever's currently
   // loaded — new messages arriving afterward are never pre-starred, so
@@ -371,7 +383,7 @@ export function ConversationThreadPage({
       window.alert("Viewing group info from the web app isn't built yet — use the mobile app for now.");
       return;
     }
-    if (recipientId) navigate(`/chats/${conversationId}/contact/${recipientId}`);
+    if (recipientId) setInfoPanelView('contact');
   }
 
   /**
@@ -392,6 +404,7 @@ export function ConversationThreadPage({
   }
 
   return (
+    <>
     <div className="main-panel">
       <div className="thread-header">
         {/* Only visible at mobile widths (see index.css's media query) — the
@@ -407,6 +420,16 @@ export function ConversationThreadPage({
             <div className="thread-header-status">{typingLabel || (isGroup ? 'Group' : '')}</div>
           </div>
         </div>
+        {!isGroup && recipientId && (
+          <>
+            <button className="icon-button" title="Voice call" onClick={() => void startCall(recipientId, title, 'AUDIO')}>
+              📞
+            </button>
+            <button className="icon-button" title="Video call" onClick={() => void startCall(recipientId, title, 'VIDEO')}>
+              🎥
+            </button>
+          </>
+        )}
         {isGroup && groupId && (
           <>
             <button
@@ -433,8 +456,8 @@ export function ConversationThreadPage({
             <div className="bubble-menu" style={{ top: '110%', right: 0 }} onMouseLeave={() => setOverflowOpen(false)}>
               <button onClick={() => { setOverflowOpen(false); navigate('/chats/new'); }}>New chat</button>
               <button onClick={() => { setOverflowOpen(false); goToContact(); }}>{isGroup ? 'Group info' : 'View contact'}</button>
-              <button onClick={() => { setOverflowOpen(false); navigate(`/chats/${conversationId}/search`); }}>Search</button>
-              <button onClick={() => { setOverflowOpen(false); navigate(`/chats/${conversationId}/media`); }}>Media, links, and docs</button>
+              <button onClick={() => { setOverflowOpen(false); setInfoPanelView('search'); }}>Search</button>
+              <button onClick={() => { setOverflowOpen(false); setInfoPanelView('media'); }}>Media, links, and docs</button>
               <button onClick={() => { setMuted(!muted); setOverflowOpen(false); }}>{muted ? 'Unmute notifications' : 'Mute notifications'}</button>
               <button onClick={() => { setDisappearingPickerOpen(true); setOverflowOpen(false); }}>Disappearing messages</button>
               <button onClick={clearChat}>Clear chat</button>
@@ -502,10 +525,11 @@ export function ConversationThreadPage({
                   outcome={m.ciphertext}
                   durationMs={m.mediaDurationMs}
                   isMine={isMine}
-                  // Web has no 1:1 call-start mechanism yet (only group calls,
-                  // via startGroupCall below) — the pill renders as a plain
-                  // non-interactive log entry until that's added.
-                  onCallBack={undefined}
+                  onCallBack={
+                    !isGroup && recipientId
+                      ? () => void startCall(recipientId, title, m.mediaFileName === 'VIDEO' ? 'VIDEO' : 'AUDIO')
+                      : undefined
+                  }
                 />
               </div>
             );
@@ -759,6 +783,15 @@ export function ConversationThreadPage({
         />
       )}
     </div>
+    {infoPanelView && (
+      <InfoPanel
+        conversationId={conversationId}
+        recipientId={recipientId}
+        initialView={infoPanelView}
+        onClose={() => setInfoPanelView(null)}
+      />
+    )}
+    </>
   );
 }
 

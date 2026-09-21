@@ -1,6 +1,7 @@
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
+import { IconRail } from '../components/IconRail';
 import { useAuth } from '../features/auth/AuthContext';
 import { useConversationList } from '../features/messaging/useConversationList';
 import { useInboxSocket } from '../features/messaging/useInboxSocket';
@@ -57,6 +58,7 @@ export function ConversationListPage() {
     // a real mobile chat client behaves rather than the old 40vh-sidebar
     // stack that left neither pane usable.
     <div className={`app-shell ${conversationId ? 'has-active-conversation' : ''}`}>
+      <IconRail />
       <aside className="sidebar">
         <div className="sidebar-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -66,9 +68,6 @@ export function ConversationListPage() {
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="icon-button" title="New chat" onClick={() => navigate('/chats/new')}>
               +
-            </button>
-            <button className="icon-button" title="Settings" onClick={() => navigate('/settings')}>
-              ⚙
             </button>
           </div>
         </div>
@@ -117,7 +116,21 @@ export function ConversationListPage() {
       ) : (
         <div className="main-panel">
           <div className="empty-state">
-            <p style={{ fontSize: 15 }}>Select a conversation, or start a new one.</p>
+            <div className="empty-state-card">
+              <svg width={120} height={120} viewBox="0 0 24 24" fill="none" stroke="var(--brand-400)" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+                <rect x={2} y={4} width={20} height={14} rx={2} />
+                <path d="M8 21h8M12 17v4" />
+                <path d="M8 9h8M8 12h5" />
+              </svg>
+              <h2>RiskyC Chat for web</h2>
+              <p>Send and receive messages without keeping your phone online.</p>
+              <p className="empty-state-hint">Use RiskyC Chat on up to 4 linked devices and 1 phone at the same time.</p>
+            </div>
+            <div className="empty-state-actions">
+              <button className="link-button" onClick={() => navigate('/chats/new')}>
+                New chat
+              </button>
+            </div>
           </div>
         </div>
       )}

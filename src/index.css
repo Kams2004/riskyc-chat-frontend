@@ -675,6 +675,117 @@ h1.step-title {
   padding: 24px;
 }
 
+.empty-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 420px;
+}
+
+.empty-state-card h2 {
+  margin: 10px 0 0;
+  font-weight: 300;
+  font-size: 26px;
+  color: var(--text-primary);
+}
+
+.empty-state-card p {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.empty-state-hint {
+  margin-top: 10px !important;
+  font-size: 12px !important;
+  color: var(--text-muted);
+}
+
+.empty-state-actions {
+  margin-top: 24px;
+}
+
+/* ---------- Icon rail (Chats / Status / Calls / Settings) ---------- */
+
+.icon-rail {
+  width: 72px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 0;
+  gap: 6px;
+}
+
+.icon-rail-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.icon-rail-button:hover {
+  background: var(--tint1);
+}
+
+.icon-rail-button.active {
+  background: var(--tint2);
+  color: var(--brand-600);
+}
+
+.icon-rail-spacer {
+  flex: 1;
+}
+
+.icon-rail-avatar {
+  border: none;
+  background: none;
+  padding: 3px;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.icon-rail-avatar.active {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 1px;
+}
+
+/* ---------- Info panel (contact / media / search, 4th column) ---------- */
+
+.info-panel {
+  width: 380px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--hairline);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.info-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+
+.info-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 20px;
+}
+
 .typing-indicator {
   font-size: 12px;
   color: var(--text-muted);
@@ -873,6 +984,109 @@ h1.step-title {
 
 .call-control-button.danger {
   background: #e53935;
+}
+
+.call-overlay-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  z-index: 10;
+}
+
+.call-overlay-icon-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.call-overlay-quality-button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: none;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.call-overlay-remote-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.call-overlay-pip {
+  position: absolute;
+  top: 56px;
+  right: 20px;
+  width: 100px;
+  height: 150px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  z-index: 5;
+}
+
+.call-overlay-pip-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.call-overlay-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.call-overlay-name {
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.call-overlay-status {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.call-overlay-timer {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 12px;
+  border-radius: 12px;
+  z-index: 6;
+}
+
+.call-overlay-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  padding: 16px 0 32px;
 }
 
 .incoming-call-banner {
@@ -1314,6 +1528,270 @@ h1.step-title {
   text-shadow: 0 0 3px var(--surface);
 }
 
+/* ---------- Status feature ---------- */
+
+.status-section-label {
+  padding: 10px 18px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.status-ring {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.status-ring.unviewed {
+  box-shadow: 0 0 0 2.5px var(--brand-500);
+}
+
+.status-ring.viewed {
+  box-shadow: 0 0 0 2.5px var(--hairline);
+}
+
+.status-add-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--brand-500);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  border: 2px solid var(--surface);
+  cursor: pointer;
+}
+
+.status-composer {
+  background: var(--surface);
+  border-radius: 16px;
+  overflow: hidden;
+  width: 380px;
+  max-height: 80vh;
+}
+
+.status-composer-pick {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status-text-editor,
+.status-media-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 480px;
+  padding: 20px;
+}
+
+.status-composer-close {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  z-index: 2;
+}
+
+.status-text-input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 22px;
+  text-align: center;
+  resize: none;
+  outline: none;
+  margin-top: 50px;
+  font-family: inherit;
+}
+
+.status-text-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.status-bg-swatches {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0;
+}
+
+.status-bg-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+
+.status-bg-swatch.active {
+  border-color: #fff;
+}
+
+.status-composer-send {
+  align-self: flex-end;
+}
+
+.status-media-preview {
+  width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+  border-radius: 8px;
+  margin-top: 40px;
+  background: #000;
+}
+
+.status-media-caption-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.status-viewer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-viewer {
+  width: 100%;
+  max-width: 420px;
+  height: 100%;
+  max-height: 900px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #000;
+}
+
+.status-viewer-bars {
+  display: flex;
+  gap: 4px;
+  padding: 8px 8px 0;
+}
+
+.status-viewer-bar {
+  flex: 1;
+  height: 2.5px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.status-viewer-bar-fill {
+  height: 100%;
+  background: #fff;
+}
+
+.status-viewer-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  color: #fff;
+}
+
+.status-viewer-time {
+  font-size: 12.5px;
+  opacity: 0.85;
+}
+
+.status-viewer-content {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.status-viewer-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 35%;
+  z-index: 1;
+  cursor: pointer;
+}
+
+.status-viewer-zone.left {
+  left: 0;
+}
+
+.status-viewer-zone.right {
+  right: 0;
+}
+
+.status-viewer-text {
+  color: #fff;
+  font-size: 24px;
+  text-align: center;
+  padding: 0 30px;
+  word-break: break-word;
+}
+
+.status-viewer-media {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.status-viewer-caption {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  color: #fff;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.status-viewer-viewers-toggle {
+  background: none;
+  border: none;
+  color: #fff;
+  opacity: 0.85;
+  font-size: 13px;
+  padding: 10px 16px 16px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.status-viewer-viewers-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  opacity: 0.8;
+}
+
+.status-viewer-reply-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px 16px;
+}
+
 /* ---------- Responsive: narrow / mobile-browser widths ---------- */
 
 .mobile-back-button {
@@ -1344,9 +1822,23 @@ h1.step-title {
   .app-shell:not(.has-active-conversation) .main-panel {
     display: none;
   }
+  .app-shell.has-active-conversation .icon-rail {
+    display: none;
+  }
   .main-panel {
     width: 100%;
     height: 100%;
+  }
+  /* The info panel (contact/media/search) takes over the full narrow
+     viewport in place of the thread, the same swap the sidebar/thread pair
+     already does — rather than being squeezed in as a fourth column. */
+  .info-panel {
+    width: 100%;
+    height: 100%;
+    border-left: none;
+  }
+  .app-shell:has(.info-panel) .main-panel {
+    display: none;
   }
   .mobile-back-button {
     display: flex;

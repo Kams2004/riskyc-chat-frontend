@@ -1,24 +1,25 @@
 import { Navigate, Route, BrowserRouter, Routes } from 'react-router-dom';
 
 import { AuthProvider, useAuth } from './features/auth/AuthContext';
+import { CallProvider } from './features/calls/CallContext';
 import { GroupCallProvider } from './features/calls/GroupCallContext';
+import { CallOverlay } from './components/CallOverlay';
 import { GroupCallOverlay } from './components/GroupCallOverlay';
 import { IncomingGroupCallBanner } from './components/IncomingGroupCallBanner';
 import { TabLockGate } from './components/TabLockGate';
 import { ThemeProvider } from './lib/ThemeContext';
 import { AccountPage } from './pages/Account';
+import { CallsPage } from './pages/Calls';
 import { ChangeIdentifierPage } from './pages/ChangeIdentifier';
-import { ContactDetailsPage } from './pages/ContactDetails';
 import { ConversationListPage } from './pages/ConversationList';
 import { DevicesPage } from './pages/Devices';
 import { InvitePage } from './pages/Invite';
 import { PermissionsPage } from './pages/Permissions';
-import { MediaLinksDocsPage } from './pages/MediaLinksDocs';
-import { SearchInChatPage } from './pages/SearchInChat';
 import { NewChatPage } from './pages/NewChat';
 import { PrivacyPage } from './pages/Privacy';
 import { SettingsPage } from './pages/Settings';
 import { SignInPage } from './pages/SignIn';
+import { StatusPage } from './pages/Status';
 import { TermsPage } from './pages/Terms';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -52,34 +53,26 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/chats/:conversationId/contact/:userId"
-        element={
-          <RequireAuth>
-            <ContactDetailsPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/chats/:conversationId/media"
-        element={
-          <RequireAuth>
-            <MediaLinksDocsPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/chats/:conversationId/search"
-        element={
-          <RequireAuth>
-            <SearchInChatPage />
-          </RequireAuth>
-        }
-      />
-      <Route
         path="/chats/:conversationId?"
         element={
           <RequireAuth>
             <ConversationListPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/status"
+        element={
+          <RequireAuth>
+            <StatusPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/calls"
+        element={
+          <RequireAuth>
+            <CallsPage />
           </RequireAuth>
         }
       />
@@ -124,14 +117,17 @@ export function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <GroupCallProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-          {/* App-root, not a route — survives navigation, same as mobile's _layout.tsx mounting. */}
-          <IncomingGroupCallBanner />
-          <GroupCallOverlay />
-        </GroupCallProvider>
+        <CallProvider>
+          <GroupCallProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+            {/* App-root, not a route — survives navigation, same as mobile's _layout.tsx mounting. */}
+            <IncomingGroupCallBanner />
+            <GroupCallOverlay />
+            <CallOverlay />
+          </GroupCallProvider>
+        </CallProvider>
       </AuthProvider>
     </ThemeProvider>
   );
