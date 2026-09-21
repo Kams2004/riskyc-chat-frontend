@@ -1,6 +1,8 @@
+import { faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Icon } from '../components/Icon';
 import { useAuth } from '../features/auth/AuthContext';
 import { deleteMyAccount, getUser } from '../features/users/api';
 import { maskIdentifier } from '../lib/mask';
@@ -37,7 +39,7 @@ export function AccountPage() {
   return (
     <div className="settings-page">
       <button className="back-link" onClick={() => navigate('/settings')}>
-        ← Back
+        <Icon icon={faArrowLeft} /> Back
       </button>
       <h1>Account</h1>
 

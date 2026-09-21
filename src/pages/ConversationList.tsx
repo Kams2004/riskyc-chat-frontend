@@ -1,7 +1,11 @@
+import { faStar as faStarSolid } from '@fortawesome/free-solid-svg-icons';
+import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
+import { Icon } from '../components/Icon';
 import { IconRail } from '../components/IconRail';
 import { useAuth } from '../features/auth/AuthContext';
 import { useConversationList, type ConversationListItem } from '../features/messaging/useConversationList';
@@ -51,6 +55,7 @@ export function ConversationListPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { conversationId } = useParams<{ conversationId?: string }>();
+  const { t } = useTranslation('web');
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<ListFilter>('all');
@@ -109,7 +114,7 @@ export function ConversationListPage() {
           </svg>
           <input
             className="sidebar-search-input"
-            placeholder="Search or start a new chat"
+            placeholder={t('sidebar.searchPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -123,7 +128,7 @@ export function ConversationListPage() {
               className={`sidebar-filter-pill ${filter === f ? 'active' : ''}`}
               onClick={() => setFilter(f)}
             >
-              {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : f === 'favorites' ? 'Favourites' : 'Groups'}
+              {f === 'all' ? t('sidebar.filterAll') : f === 'unread' ? t('sidebar.filterUnread') : f === 'favorites' ? t('sidebar.filterFavorites') : t('sidebar.filterGroups')}
             </button>
           ))}
         </div>
@@ -132,7 +137,7 @@ export function ConversationListPage() {
           {isLoading && conversations.length === 0 && <p style={{ padding: 18, color: 'var(--text-muted)' }}>Loading…</p>}
           {!isLoading && filtered.length === 0 && (
             <p style={{ padding: 18, color: 'var(--text-muted)' }}>
-              {conversations.length === 0 ? 'No conversations yet — start one.' : 'No matches.'}
+              {conversations.length === 0 ? t('sidebar.noConversations') : t('sidebar.noMatches')}
             </p>
           )}
           {filtered.map((c) => {
@@ -150,10 +155,10 @@ export function ConversationListPage() {
                 </div>
                 <button
                   className="conversation-row-favorite"
-                  title={favorited ? 'Remove from favourites' : 'Add to favourites'}
+                  title={favorited ? t('sidebar.removeFromFavorites') : t('sidebar.addToFavorites')}
                   onClick={(e) => handleToggleFavorite(e, c)}
                 >
-                  {favorited ? '★' : '☆'}
+                  <Icon icon={favorited ? faStarSolid : faStarRegular} />
                 </button>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                   <span className="conversation-row-time">{formatListTime(c.lastMessageAt)}</span>
@@ -197,13 +202,13 @@ export function ConversationListPage() {
                 <path d="M8 21h8M12 17v4" />
                 <path d="M8 9h8M8 12h5" />
               </svg>
-              <h2>RiskyC Chat for web</h2>
-              <p>Send and receive messages without keeping your phone online.</p>
-              <p className="empty-state-hint">Use RiskyC Chat on up to 4 linked devices and 1 phone at the same time.</p>
+              <h2>{t('emptyState.title')}</h2>
+              <p>{t('emptyState.body')}</p>
+              <p className="empty-state-hint">{t('emptyState.hint')}</p>
             </div>
             <div className="empty-state-actions">
               <button className="link-button" onClick={() => navigate('/chats/new')}>
-                New chat
+                {t('emptyState.newChat')}
               </button>
             </div>
           </div>

@@ -1,6 +1,9 @@
+import { faAngleLeft, faMagnifyingGlass, faPhone, faVideo, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Avatar } from './Avatar';
+import { Icon } from './Icon';
 import { useCall } from '../features/calls/CallContext';
 import { useMediaUrl } from '../features/media/useMediaUrl';
 import { getCommonGroups, type GroupResult } from '../features/groups/api';
@@ -93,13 +96,13 @@ function ContactView({
 
       <div style={{ display: 'flex', justifyContent: 'center', gap: 32, paddingBottom: 20, borderBottom: '1px solid var(--hairline)' }}>
         <button className="icon-button" title="Voice call" onClick={() => void startCall(recipientId, name, 'AUDIO')}>
-          📞
+          <Icon icon={faPhone} />
         </button>
         <button className="icon-button" title="Video call" onClick={() => void startCall(recipientId, name, 'VIDEO')}>
-          🎥
+          <Icon icon={faVideo} />
         </button>
         <button className="icon-button" title="Search in conversation" onClick={onOpenSearch}>
-          🔍
+          <Icon icon={faMagnifyingGlass} />
         </button>
       </div>
 
@@ -231,11 +234,6 @@ function MediaView({ conversationId }: { conversationId: string }) {
   );
 }
 
-const VIEW_TITLE: Record<InfoPanelView, string> = {
-  contact: 'Contact info',
-  media: 'Media, links, and docs',
-};
-
 /**
  * The 4th flex column next to the thread — folds what used to be three
  * separate full-page routes (ContactDetailsPage/MediaLinksDocsPage/
@@ -257,6 +255,8 @@ export function InfoPanel({
   /** Search now happens inline in the thread itself (see ConversationThread's own search bar), not as a panel view — this closes the panel and opens that instead. */
   onOpenSearch: () => void;
 }) {
+  const { t } = useTranslation('web');
+  const viewTitle: Record<InfoPanelView, string> = { contact: t('infoPanel.contactInfo'), media: t('infoPanel.mediaLinksDocs') };
   const [view, setView] = useState<InfoPanelView>(initialView);
   const [history, setHistory] = useState<InfoPanelView[]>([]);
 
@@ -287,12 +287,12 @@ export function InfoPanel({
     <aside className="info-panel">
       <div className="info-panel-header">
         <button className="icon-button" title={history.length > 0 ? 'Back' : 'Close'} onClick={back}>
-          {history.length > 0 ? '←' : '✕'}
+          <Icon icon={history.length > 0 ? faAngleLeft : faXmark} />
         </button>
-        <strong style={{ fontSize: 15 }}>{VIEW_TITLE[view]}</strong>
+        <strong style={{ fontSize: 15 }}>{viewTitle[view]}</strong>
         {history.length > 0 && (
           <button className="icon-button" title="Close" onClick={onClose} style={{ marginLeft: 'auto' }}>
-            ✕
+            <Icon icon={faXmark} />
           </button>
         )}
       </div>

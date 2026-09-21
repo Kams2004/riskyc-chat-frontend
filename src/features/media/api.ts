@@ -29,3 +29,16 @@ export async function uploadMedia(file: File): Promise<string> {
   await uploadToPresignedUrl(uploadUrl, file);
   return objectKey;
 }
+
+/**
+ * Cuts an already-uploaded video down to [startMs, endMs) server-side (see
+ * MediaController#trimVideo — ffmpeg stream copy, no re-encode) and returns
+ * the NEW object key for the trimmed result; the original upload is left
+ * untouched. Same endpoint mobile's status composer uses.
+ */
+export function trimVideo(objectKey: string, startMs: number, endMs: number): Promise<{ objectKey: string }> {
+  return apiFetch(`${config.mediaServiceUrl}/api/media/trim-video`, {
+    method: 'POST',
+    body: JSON.stringify({ objectKey, startMs, endMs }),
+  });
+}

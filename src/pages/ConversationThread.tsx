@@ -1,9 +1,26 @@
+import {
+  faArrowDown,
+  faArrowLeft,
+  faArrowUp,
+  faCheck,
+  faEllipsisVertical,
+  faMagnifyingGlass,
+  faPaperclip,
+  faPaperPlane,
+  faPhone,
+  faStar as faStarSolid,
+  faThumbtack,
+  faVideo,
+  faXmark,
+} from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
 import { CallLogRow } from '../components/CallLogRow';
 import { FileAttachmentRow } from '../components/FileAttachmentRow';
+import { Icon } from '../components/Icon';
 import { firstUrlIn, LinkPreviewCard } from '../components/LinkPreviewCard';
 import { MediaViewer } from '../components/MediaViewer';
 import { MessageAttachmentGrid } from '../components/MessageAttachmentGrid';
@@ -97,6 +114,7 @@ export function ConversationThreadPage({
   const navigate = useNavigate();
   const { conversations } = useConversationList(userId);
   const wallpaper = useWallpaperVariant();
+  const { t } = useTranslation('web');
 
   const [draft, setDraft] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -465,12 +483,12 @@ export function ConversationThreadPage({
       <div className="thread-header">
         {searchOpen ? (
           <>
-            <button className="icon-button" title="Close search" onClick={closeSearch}>
-              ←
+            <button className="icon-button" title={t('threadSearch.close')} onClick={closeSearch}>
+              <Icon icon={faArrowLeft} />
             </button>
             <input
               className="thread-search-input"
-              placeholder="Search this conversation"
+              placeholder={t('threadSearch.placeholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               autoFocus
@@ -482,11 +500,11 @@ export function ConversationThreadPage({
             <span className="thread-search-count">
               {isSearching ? '…' : searchResults.length > 0 ? `${searchIndex + 1}/${searchResults.length}` : searchQuery.trim() ? '0/0' : ''}
             </span>
-            <button className="icon-button" title="Previous match" onClick={() => stepSearch(-1)} disabled={searchResults.length === 0}>
-              ↑
+            <button className="icon-button" title={t('threadSearch.previous')} onClick={() => stepSearch(-1)} disabled={searchResults.length === 0}>
+              <Icon icon={faArrowUp} />
             </button>
-            <button className="icon-button" title="Next match" onClick={() => stepSearch(1)} disabled={searchResults.length === 0}>
-              ↓
+            <button className="icon-button" title={t('threadSearch.next')} onClick={() => stepSearch(1)} disabled={searchResults.length === 0}>
+              <Icon icon={faArrowDown} />
             </button>
           </>
         ) : (
@@ -495,7 +513,7 @@ export function ConversationThreadPage({
             two-pane layout doesn't need it, but a full-width mobile thread
             view has no other way back to the conversation list. */}
         <button className="icon-button mobile-back-button" onClick={() => navigate('/chats')} title="Back to chats">
-          ←
+          <Icon icon={faArrowLeft} />
         </button>
         <div onClick={goToContact} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}>
           <Avatar label={title} objectKey={avatarObjectKey} size={40} />
@@ -507,10 +525,10 @@ export function ConversationThreadPage({
         {!isGroup && recipientId && (
           <>
             <button className="icon-button" title="Voice call" onClick={() => void startCall(recipientId, title, 'AUDIO')}>
-              📞
+              <Icon icon={faPhone} />
             </button>
             <button className="icon-button" title="Video call" onClick={() => void startCall(recipientId, title, 'VIDEO')}>
-              🎥
+              <Icon icon={faVideo} />
             </button>
           </>
         )}
@@ -521,23 +539,23 @@ export function ConversationThreadPage({
               title="Start audio call"
               onClick={() => void startGroupCall(groupId, title, Object.keys(memberNames).filter((id) => id !== userId), 'AUDIO')}
             >
-              📞
+              <Icon icon={faPhone} />
             </button>
             <button
               className="icon-button"
               title="Start video call"
               onClick={() => void startGroupCall(groupId, title, Object.keys(memberNames).filter((id) => id !== userId), 'VIDEO')}
             >
-              🎥
+              <Icon icon={faVideo} />
             </button>
           </>
         )}
-        <button className="icon-button" title="Search this conversation" onClick={() => setSearchOpen(true)}>
-          🔍
+        <button className="icon-button" title={t('threadSearch.placeholder')} onClick={() => setSearchOpen(true)}>
+          <Icon icon={faMagnifyingGlass} />
         </button>
         <div style={{ position: 'relative' }}>
           <button className="icon-button" onClick={() => setOverflowOpen((v) => !v)} title="More">
-            ⋮
+            <Icon icon={faEllipsisVertical} />
           </button>
           {overflowOpen && (
             <div className="bubble-menu" style={{ top: '110%', right: 0 }} onMouseLeave={() => setOverflowOpen(false)}>
@@ -570,8 +588,8 @@ export function ConversationThreadPage({
 
       {pinnedMessage && (
         <div className="pin-banner" onClick={() => navigateToMessage(conversationId, pinnedMessage.messageId)}>
-          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            📌 {isGroup ? `${memberName(pinnedMessage.senderId)}: ` : ''}{snippetFor(pinnedMessage)}
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icon icon={faThumbtack} /> {isGroup ? `${memberName(pinnedMessage.senderId)}: ` : ''}{snippetFor(pinnedMessage)}
           </span>
           <button
             className="icon-button"
@@ -581,7 +599,7 @@ export function ConversationThreadPage({
               togglePin(pinnedMessage);
             }}
           >
-            ✕
+            <Icon icon={faXmark} />
           </button>
         </div>
       )}
@@ -633,7 +651,7 @@ export function ConversationThreadPage({
               <div className={`bubble ${isMine ? 'mine' : 'theirs'} ${highlightedMessageId === m.messageId ? 'highlighted' : ''}`}>
                 {isGroup && !isMine && <div className="bubble-sender">{memberName(m.senderId)}</div>}
                 {m.forwarded && <span className="bubble-forwarded">Forwarded</span>}
-                {starredHere && <span className="bubble-star-badge" title="Starred">★</span>}
+                {starredHere && <span className="bubble-star-badge" title="Starred"><Icon icon={faStarSolid} /></span>}
                 {!!m.replyToMessageId && (
                   <div
                     className="bubble-quote"
@@ -685,7 +703,7 @@ export function ConversationThreadPage({
                 <ReactionPills reactions={messageReactions} currentUserId={userId} onToggle={(emoji) => handleReact(m.messageId, emoji)} />
 
                 <button className="bubble-kebab" onClick={() => setOpenMenuFor(openMenuFor === m.messageId ? null : m.messageId)}>
-                  ⋮
+                  <Icon icon={faEllipsisVertical} />
                 </button>
                 {reactionPickerFor === m.messageId && (
                   <div style={{ position: 'absolute', top: -44, right: 0, zIndex: 10 }}>
@@ -799,7 +817,7 @@ export function ConversationThreadPage({
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
           >
-            {isUploading ? '…' : '📎'}
+            {isUploading ? '…' : <Icon icon={faPaperclip} />}
           </button>
         )}
         {isRecordingVoice ? (
@@ -817,7 +835,7 @@ export function ConversationThreadPage({
             />
             {draft.trim() ? (
               <button type="submit" className="composer-send" title="Send">
-                ➤
+                <Icon icon={faPaperPlane} />
               </button>
             ) : (
               <VoiceRecorderButton onSend={handleVoiceSend} onRecordingChange={setIsRecordingVoice} />
@@ -853,7 +871,7 @@ export function ConversationThreadPage({
                 }}
               >
                 <div className="conversation-row-title" style={{ flex: 1 }}>{opt.label}</div>
-                {disappearingSeconds === opt.seconds && <span>✓</span>}
+                {disappearingSeconds === opt.seconds && <span><Icon icon={faCheck} /></span>}
               </div>
             ))}
             <button className="link-button secondary" onClick={() => setDisappearingPickerOpen(false)}>

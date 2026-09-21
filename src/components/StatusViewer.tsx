@@ -1,5 +1,7 @@
+import { faPaperPlane, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useRef, useState } from 'react';
 
+import { Icon } from './Icon';
 import { useAuth } from '../features/auth/AuthContext';
 import { useMediaUrl } from '../features/media/useMediaUrl';
 import { sendStatusReply } from '../features/status/reply';
@@ -140,11 +142,11 @@ export function StatusViewer({
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
             {isOwn && (
               <button className="icon-button" title="Delete" onClick={handleDelete} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
-                🗑
+                <Icon icon={faTrash} />
               </button>
             )}
             <button className="icon-button" title="Close" onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
-              ✕
+              <Icon icon={faXmark} />
             </button>
           </div>
         </div>
@@ -191,7 +193,7 @@ export function StatusViewer({
               style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none' }}
             />
             <button className="composer-send" onClick={handleReplySend} disabled={!replyText.trim()}>
-              ➤
+              <Icon icon={faPaperPlane} />
             </button>
           </div>
         )}

@@ -1,6 +1,8 @@
+import { faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Icon } from '../components/Icon';
 import { useAuth } from '../features/auth/AuthContext';
 import { listSessions, revokeSession, type SessionResult } from '../features/sessions/api';
 
@@ -50,7 +52,7 @@ export function DevicesPage() {
   return (
     <div className="settings-page">
       <button className="back-link" onClick={() => navigate('/settings')}>
-        ← Back
+        <Icon icon={faArrowLeft} /> Back
       </button>
       <h1>Logged-in devices</h1>
 

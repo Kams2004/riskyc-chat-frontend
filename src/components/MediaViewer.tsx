@@ -1,5 +1,7 @@
+import { faChevronLeft, faChevronRight, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useRef, useState } from 'react';
 
+import { Icon } from './Icon';
 import { useMediaUrl } from '../features/media/useMediaUrl';
 import type { AttachmentItem } from '../features/messaging/api';
 
@@ -108,7 +110,7 @@ export function MediaViewer({ items, initialIndex, onClose }: { items: Attachmen
       style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       <button onClick={onClose} style={{ ...navButtonStyle, top: 16, left: 16, transform: 'none' }}>
-        ✕
+        <Icon icon={faXmark} />
       </button>
 
       {items.length > 1 && (
@@ -131,12 +133,12 @@ export function MediaViewer({ items, initialIndex, onClose }: { items: Attachmen
 
       {index > 0 && (
         <button onClick={() => setIndex(index - 1)} style={{ ...navButtonStyle, left: 16 }}>
-          ‹
+          <Icon icon={faChevronLeft} />
         </button>
       )}
       {index < items.length - 1 && (
         <button onClick={() => setIndex(index + 1)} style={{ ...navButtonStyle, right: 16 }}>
-          ›
+          <Icon icon={faChevronRight} />
         </button>
       )}
 

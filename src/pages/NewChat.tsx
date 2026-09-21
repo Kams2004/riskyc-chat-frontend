@@ -1,7 +1,9 @@
+import { faArrowLeft, faUserPlus } from '@fortawesome/free-solid-svg-icons';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
+import { Icon } from '../components/Icon';
 import { conversationIdFor } from '../features/messaging/conversationId';
 import { searchUsers, type UserResult } from '../features/users/api';
 import { useAuth } from '../features/auth/AuthContext';
@@ -53,7 +55,7 @@ export function NewChatPage() {
   return (
     <div className="settings-page">
       <button className="back-link" onClick={() => navigate(-1)}>
-        ← Back
+        <Icon icon={faArrowLeft} /> Back
       </button>
       <h1>New chat</h1>
       <div className="conversation-row" style={{ borderRadius: 10, marginBottom: 8 }} onClick={shareInviteLink}>
@@ -70,7 +72,7 @@ export function NewChatPage() {
             fontSize: 18,
           }}
         >
-          ↗
+          <Icon icon={faUserPlus} />
         </div>
         <div className="conversation-row-title">Invite a friend</div>
       </div>

@@ -1,11 +1,14 @@
+import { faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
+
+import { Icon } from '../components/Icon';
 
 export function PrivacyPage() {
   const navigate = useNavigate();
   return (
     <div className="legal-page">
       <button className="back-link" onClick={() => navigate(-1)}>
-        ← Back
+        <Icon icon={faArrowLeft} /> Back
       </button>
       <h1>Privacy Policy</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: 13.5 }}>Last updated: September 2026</p>

@@ -1,9 +1,11 @@
+import { faChevronDown, faMicrophone, faMicrophoneSlash, faPhone, faPhoneSlash, faVideo, faVideoSlash } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useRef, useState } from 'react';
 
 import { useCall, type CallQuality } from '../features/calls/CallContext';
 import { UNRESOLVED_PERSON_PLACEHOLDER } from '../features/messaging/conversationId';
 import { getUser } from '../features/users/api';
 import { Avatar } from './Avatar';
+import { Icon } from './Icon';
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -113,7 +115,7 @@ export function CallOverlay() {
       {callState === 'connected' && (
         <div className="call-overlay-topbar">
           <button type="button" className="call-overlay-icon-button" onClick={minimizeCall} title="Minimize">
-            ▾
+            <Icon icon={faChevronDown} />
           </button>
           <div style={{ marginLeft: 'auto', position: 'relative' }}>
             <button type="button" className="call-overlay-quality-button" onClick={() => setQualityMenuOpen((v) => !v)}>
@@ -158,32 +160,32 @@ export function CallOverlay() {
         {callState === 'incoming-ringing' && (
           <>
             <CallIconButton onClick={declineIncoming} danger title="Decline">
-              ✕
+              <Icon icon={faPhoneSlash} />
             </CallIconButton>
             <CallIconButton onClick={acceptIncoming} title="Accept">
-              📞
+              <Icon icon={faPhone} />
             </CallIconButton>
           </>
         )}
 
         {callState === 'outgoing-ringing' && (
           <CallIconButton onClick={endCall} danger title="Cancel">
-            ✕
+            <Icon icon={faPhoneSlash} />
           </CallIconButton>
         )}
 
         {callState === 'connected' && (
           <>
             <CallIconButton onClick={toggleMute} active={isMuted} title={isMuted ? 'Unmute' : 'Mute'}>
-              {isMuted ? '🔇' : '🎙'}
+              <Icon icon={isMuted ? faMicrophoneSlash : faMicrophone} />
             </CallIconButton>
             {isVideo && (
               <CallIconButton onClick={toggleCamera} active={isCameraOff} title={isCameraOff ? 'Turn camera on' : 'Turn camera off'}>
-                {isCameraOff ? '📷' : '🎥'}
+                <Icon icon={isCameraOff ? faVideoSlash : faVideo} />
               </CallIconButton>
             )}
             <CallIconButton onClick={endCall} danger title="End call">
-              ✕
+              <Icon icon={faPhoneSlash} />
             </CallIconButton>
           </>
         )}

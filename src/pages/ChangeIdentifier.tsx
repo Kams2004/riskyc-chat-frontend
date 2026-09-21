@@ -1,6 +1,8 @@
+import { faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { Icon } from '../components/Icon';
 import { confirmIdentifierChange, requestIdentifierChange, type IdentifierField } from '../features/users/api';
 import { ApiError } from '../lib/httpClient';
 
@@ -106,7 +108,7 @@ export function ChangeIdentifierPage() {
   return (
     <div className="settings-page">
       <button className="back-link" onClick={() => (step === 'verify' ? setStep('enter') : navigate(-1))}>
-        ← Back
+        <Icon icon={faArrowLeft} /> Back
       </button>
       <h1>Change {mode === 'phone' ? 'phone number' : 'email'}</h1>
 

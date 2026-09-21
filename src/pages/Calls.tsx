@@ -1,6 +1,8 @@
+import { faPhone, faVideo } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useState } from 'react';
 
 import { Avatar } from '../components/Avatar';
+import { Icon } from '../components/Icon';
 import { IconRail } from '../components/IconRail';
 import { useAuth } from '../features/auth/AuthContext';
 import { listCallHistory, type CallResult } from '../features/calls/api';
@@ -108,7 +110,7 @@ export function CallsPage() {
                     redial(item, item.type);
                   }}
                 >
-                  {item.type === 'VIDEO' ? '🎥' : '📞'}
+                  <Icon icon={item.type === 'VIDEO' ? faVideo : faPhone} />
                 </button>
               </div>
             );

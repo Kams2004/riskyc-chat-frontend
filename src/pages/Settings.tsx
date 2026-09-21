@@ -1,7 +1,11 @@
+import { faArrowLeft, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
+import { Icon } from '../components/Icon';
 import { useAuth } from '../features/auth/AuthContext';
+import { setAppLanguage, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../i18n';
 import { setWallpaperVariant, useWallpaperVariant, type WallpaperVariant } from '../lib/wallpaper';
 
 const WALLPAPER_OPTIONS: { value: WallpaperVariant; label: string }[] = [
@@ -14,13 +18,16 @@ export function SettingsPage() {
   const { displayName, avatarObjectKey } = useAuth();
   const navigate = useNavigate();
   const wallpaper = useWallpaperVariant();
+  const { t, i18n } = useTranslation(['settings', 'web']);
+  const currentLanguage = (i18n.language?.split('-')[0] as SupportedLanguage) || 'en';
+  const languageLabels: Record<SupportedLanguage, string> = { en: t('language.english'), fr: t('language.french') };
 
   return (
     <div className="settings-page">
       <button className="back-link" onClick={() => navigate('/chats')}>
-        ← Back to chats
+        <Icon icon={faArrowLeft} /> {t('common:back')}
       </button>
-      <h1>Settings</h1>
+      <h1>{t('index.title')}</h1>
 
       <div className="settings-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <Avatar label={displayName || 'Me'} objectKey={avatarObjectKey} size={52} />
@@ -32,12 +39,12 @@ export function SettingsPage() {
       </div>
 
       <div className="settings-row" onClick={() => navigate('/settings/account')} style={{ cursor: 'pointer' }}>
-        <p className="settings-row-label">Account</p>
+        <p className="settings-row-label">{t('index.account')}</p>
         <p className="settings-row-value">Phone number, email, delete account</p>
       </div>
 
       <div className="settings-row" onClick={() => navigate('/settings/devices')} style={{ cursor: 'pointer' }}>
-        <p className="settings-row-label">Logged-in devices</p>
+        <p className="settings-row-label">{t('index.loggedInDevices')}</p>
         <p className="settings-row-value">See where you're signed in, sign out remotely</p>
       </div>
 
@@ -52,7 +59,23 @@ export function SettingsPage() {
               onClick={() => setWallpaperVariant(opt.value)}
               title={opt.label}
             >
-              {wallpaper === opt.value && <span className="wallpaper-swatch-check">✓</span>}
+              {wallpaper === opt.value && <span className="wallpaper-swatch-check"><Icon icon={faCheck} /></span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="settings-row">
+        <p className="settings-row-label">{t('index.language')}</p>
+        <div className="toggle-row" style={{ marginTop: 8 }}>
+          {SUPPORTED_LANGUAGES.map((lang) => (
+            <button
+              key={lang}
+              type="button"
+              className={`toggle-tab ${currentLanguage === lang ? 'active' : ''}`}
+              onClick={() => setAppLanguage(lang)}
+            >
+              {languageLabels[lang]}
             </button>
           ))}
         </div>

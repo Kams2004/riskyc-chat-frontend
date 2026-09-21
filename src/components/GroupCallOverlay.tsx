@@ -1,7 +1,9 @@
+import { faMicrophone, faMicrophoneSlash, faPhoneSlash, faVideo, faVideoSlash } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useRef } from 'react';
 
 import { useGroupCall, type GroupCallParticipant } from '../features/calls/GroupCallContext';
 import { Avatar } from './Avatar';
+import { Icon } from './Icon';
 
 /** One participant's tile — video fills it when available, otherwise an avatar placeholder (audio-only calls, or camera off). */
 function ParticipantTile({ participant, isVideo }: { participant: GroupCallParticipant; isVideo: boolean }) {
@@ -77,15 +79,15 @@ export function GroupCallOverlay() {
 
       <div className="call-controls">
         <button className={`call-control-button ${isMuted ? 'active' : ''}`} onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'}>
-          {isMuted ? '🔇' : '🎤'}
+          <Icon icon={isMuted ? faMicrophoneSlash : faMicrophone} />
         </button>
         {isVideo && (
           <button className={`call-control-button ${isCameraOff ? 'active' : ''}`} onClick={toggleCamera} title={isCameraOff ? 'Turn camera on' : 'Turn camera off'}>
-            {isCameraOff ? '📷' : '🎥'}
+            <Icon icon={isCameraOff ? faVideoSlash : faVideo} />
           </button>
         )}
         <button className="call-control-button danger" onClick={leaveGroupCall} title="Leave call">
-          ✕
+          <Icon icon={faPhoneSlash} />
         </button>
       </div>
     </div>

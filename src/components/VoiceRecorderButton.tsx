@@ -1,5 +1,7 @@
+import { faMicrophone, faPaperPlane, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useRef, useState } from 'react';
 
+import { Icon } from './Icon';
 import { uploadMedia } from '../features/media/api';
 
 function formatSeconds(totalSeconds: number): string {
@@ -98,7 +100,7 @@ export function VoiceRecorderButton({
   if (!isRecording) {
     return (
       <button type="button" className="icon-button" title="Record a voice message" onClick={startRecording} disabled={isUploading}>
-        {isUploading ? '…' : '🎤'}
+        {isUploading ? '…' : <Icon icon={faMicrophone} />}
       </button>
     );
   }
@@ -106,12 +108,12 @@ export function VoiceRecorderButton({
   return (
     <div className="voice-recording-bar">
       <button type="button" className="icon-button destructive" title="Discard" onClick={cancelRecording}>
-        🗑
+        <Icon icon={faTrash} />
       </button>
       <span className="voice-recording-dot" />
       <span className="voice-recording-timer">{formatSeconds(elapsedSeconds)}</span>
       <button type="button" className="composer-send" title="Send" onClick={stopAndSend}>
-        ➤
+        <Icon icon={faPaperPlane} />
       </button>
     </div>
   );

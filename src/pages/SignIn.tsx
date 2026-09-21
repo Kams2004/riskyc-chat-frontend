@@ -1,7 +1,9 @@
+import { faCheck } from '@fortawesome/free-solid-svg-icons';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Icon } from '../components/Icon';
 import * as authApi from '../features/auth/api';
 import { useAuth } from '../features/auth/AuthContext';
 import type { VerifyOtpResponse } from '../features/auth/api';
@@ -372,7 +374,7 @@ export function SignInPage() {
         {step === 'done' && (
           <section>
             <div className="success-icon" aria-hidden="true">
-              ✓
+              <Icon icon={faCheck} />
             </div>
             <h1 className="step-title">You're signed in</h1>
             <p className="subtitle">{doneMessage}</p>
