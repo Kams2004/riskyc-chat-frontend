@@ -37,6 +37,15 @@ export type MessageEnvelope = {
   replyToSnippet?: string | null;
   /** Shared, per-conversation pin — absent on the envelope built to send (pin is a separate action). */
   pinned?: boolean;
+  /** Set only for a group-call log entry (mediaType=CALL, groupId set) — participant count for that call. */
+  mediaParticipantCount?: number | null;
+  /** Set only when the conversation had disappearing messages on at send time. */
+  expiresAt?: string | null;
+  /** True for a group event log line ("X joined the group"), never something a person typed. */
+  system?: boolean;
+  /** Both null/absent unless this message is a reply to a status. */
+  replyToStatusId?: string | null;
+  replyToStatusOwnerId?: string | null;
 };
 
 export function fetchHistory(conversationId: string): Promise<MessageEnvelope[]> {
@@ -71,8 +80,52 @@ export type ConversationSummary = {
   otherUserId: string | null;
   groupId: string | null;
   lastMessageAt: string;
+  muted: boolean;
+  disappearingMessageSeconds: number | null;
 };
 
 export function listConversationSummaries(): Promise<ConversationSummary[]> {
   return apiFetch(`${config.messagingServiceUrl}/api/conversations`);
+}
+
+export type ConversationSettingsResult = { muted: boolean; disappearingMessageSeconds: number | null };
+
+/** The thread's own initial fetch for mute/disappearing state — same endpoint mobile uses. */
+export function fetchConversationSettings(conversationId: string): Promise<ConversationSettingsResult> {
+  return apiFetch(`${config.messagingServiceUrl}/api/conversations/${conversationId}/settings`);
+}
+
+export function setConversationMuted(conversationId: string, muted: boolean): Promise<void> {
+  return apiFetch(`${config.messagingServiceUrl}/api/conversations/${conversationId}/mute`, {
+    method: 'PUT',
+    body: JSON.stringify({ muted }),
+  });
+}
+
+/** seconds=null turns disappearing messages off. Applies only to messages sent from now on. */
+export function setDisappearingMessages(conversationId: string, seconds: number | null): Promise<void> {
+  return apiFetch(`${config.messagingServiceUrl}/api/conversations/${conversationId}/disappearing`, {
+    method: 'PUT',
+    body: JSON.stringify({ seconds }),
+  });
+}
+
+export type ReactionRow = { messageId: string; userId: string; emoji: string };
+
+/** Bulk, one call per thread open — feeds initial reaction state; live updates arrive over the .reactions STOMP topic afterward. */
+export function fetchReactions(conversationId: string): Promise<ReactionRow[]> {
+  return apiFetch(`${config.messagingServiceUrl}/api/messages/${conversationId}/reactions`);
+}
+
+export type ReceiptRow = { userId: string; status: MessageStatus };
+
+/** On-demand "Message info" fetch — web isn't offline-first, so unlike mobile (which accumulates receipts locally over the live STOMP stream) this fetches the current picture directly. */
+export function fetchMessageReceipts(conversationId: string, messageId: string): Promise<ReceiptRow[]> {
+  return apiFetch(`${config.messagingServiceUrl}/api/messages/${conversationId}/${messageId}/receipts`);
+}
+
+export type LinkPreview = { url: string; title: string | null; description: string | null; imageUrl: string | null; siteName: string | null };
+
+export function fetchLinkPreview(url: string): Promise<LinkPreview> {
+  return apiFetch(`${config.messagingServiceUrl}/api/link-preview?url=${encodeURIComponent(url)}`);
 }

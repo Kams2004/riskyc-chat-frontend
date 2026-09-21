@@ -2,8 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
+import { CallLogRow } from '../components/CallLogRow';
+import { FileAttachmentRow } from '../components/FileAttachmentRow';
+import { firstUrlIn, LinkPreviewCard } from '../components/LinkPreviewCard';
 import { MediaViewer } from '../components/MediaViewer';
 import { MessageAttachmentGrid } from '../components/MessageAttachmentGrid';
+import { MessageInfoModal } from '../components/MessageInfoModal';
+import { MessageTicks } from '../components/MessageTicks';
+import { ReactionPicker, ReactionPills } from '../components/ReactionBar';
+import { VoiceMessagePlayer } from '../components/VoiceMessagePlayer';
+import { VoiceRecorderButton } from '../components/VoiceRecorderButton';
 import { useAuth } from '../features/auth/AuthContext';
 import { useGroupCall } from '../features/calls/GroupCallContext';
 import { forwardMessage } from '../features/messaging/forward';
@@ -14,6 +22,15 @@ import { useConversationList } from '../features/messaging/useConversationList';
 import { uploadMedia } from '../features/media/api';
 import { blockUser, getUser, reportUser } from '../features/users/api';
 import { getGroup } from '../features/groups/api';
+import { isStarred, star, unstar } from '../lib/starredMessages';
+import { useWallpaperVariant } from '../lib/wallpaper';
+
+const DISAPPEARING_OPTIONS: { label: string; seconds: number | null }[] = [
+  { label: 'Off', seconds: null },
+  { label: '24 hours', seconds: 24 * 60 * 60 },
+  { label: '7 days', seconds: 7 * 24 * 60 * 60 },
+  { label: '90 days', seconds: 90 * 24 * 60 * 60 },
+];
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -54,21 +71,41 @@ export function ConversationThreadPage({
 }: Props) {
   const { userId, accessToken } = useAuth();
   const { startGroupCall } = useGroupCall();
-  const { messages, sendMessage, editMessage, deleteMessage, pinMessage, typingUserIds, notifyTyping } = useConversation({
+  const {
+    messages,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    pinMessage,
+    typingUserIds,
+    notifyTyping,
+    reactions,
+    sendReaction,
+    muted,
+    setMuted,
+    disappearingSeconds,
+    setDisappearing,
+  } = useConversation({
     conversationId,
     recipientId,
     groupId,
   });
   const navigate = useNavigate();
   const { conversations } = useConversationList(userId);
+  const wallpaper = useWallpaperVariant();
 
   const [draft, setDraft] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+  const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+  const [messageInfoFor, setMessageInfoFor] = useState<string | null>(null);
+  const [starredIds, setStarredIds] = useState<Set<string>>(() => new Set());
   const [forwardPickerFor, setForwardPickerFor] = useState<MessageEnvelope | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [viewer, setViewer] = useState<{ items: AttachmentItem[]; index: number } | null>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [disappearingPickerOpen, setDisappearingPickerOpen] = useState(false);
   const [replyDraft, setReplyDraft] = useState<ReplyToDraft | null>(initialReplyDraft ?? null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
@@ -78,9 +115,40 @@ export function ConversationThreadPage({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const didScrollRef = useRef(false);
 
+  function toggleStar(messageId: string) {
+    setStarredIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+        unstar(messageId);
+      } else {
+        next.add(messageId);
+        star(messageId);
+      }
+      return next;
+    });
+  }
+
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
   }, [messages.length]);
+
+  // Seeds the starred set from localStorage once, from whatever's currently
+  // loaded — new messages arriving afterward are never pre-starred, so
+  // there's nothing to re-seed for those.
+  useEffect(() => {
+    setStarredIds((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const m of messages) {
+        if (!next.has(m.messageId) && isStarred(m.messageId)) {
+          next.add(m.messageId);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [messages]);
 
   // Resolves group member names (for sender labels/quoted blocks/pin banner)
   // and this account's admin status + the group's announcement-only flag —
@@ -237,20 +305,35 @@ export function ConversationThreadPage({
     e.target.value = ''; // allow picking the same file again later
     if (files.length === 0) return;
 
+    // Documents never join a photo/video gallery (attachments are IMAGE/VIDEO
+    // only, same as mobile) — each goes out as its own FILE message; any
+    // image/video files picked alongside them still go through the normal
+    // single-or-gallery path below.
+    const mediaFiles = files.filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
+    const documentFiles = files.filter((f) => !f.type.startsWith('image/') && !f.type.startsWith('video/'));
+
     setIsUploading(true);
     const reply = replyDraft ?? undefined;
     try {
-      const uploaded = await Promise.all(
-        files.map(async (file) => {
-          const objectKey = await uploadMedia(file);
-          return { type: file.type.startsWith('video/') ? ('VIDEO' as const) : ('IMAGE' as const), objectKey };
-        })
-      );
-      if (uploaded.length === 1) {
-        sendMessage('', { type: uploaded[0].type, objectKey: uploaded[0].objectKey }, false, undefined, reply);
-      } else {
-        sendMessage('', undefined, false, uploaded, reply);
+      for (const file of documentFiles) {
+        const objectKey = await uploadMedia(file);
+        sendMessage('', { type: 'FILE', objectKey, fileName: file.name }, false, undefined, reply);
       }
+
+      if (mediaFiles.length > 0) {
+        const uploaded = await Promise.all(
+          mediaFiles.map(async (file) => {
+            const objectKey = await uploadMedia(file);
+            return { type: file.type.startsWith('video/') ? ('VIDEO' as const) : ('IMAGE' as const), objectKey };
+          })
+        );
+        if (uploaded.length === 1) {
+          sendMessage('', { type: uploaded[0].type, objectKey: uploaded[0].objectKey }, false, undefined, reply);
+        } else {
+          sendMessage('', undefined, false, uploaded, reply);
+        }
+      }
+
       setReplyDraft(null);
       onMessageSent?.();
     } catch (err) {
@@ -258,6 +341,19 @@ export function ConversationThreadPage({
     } finally {
       setIsUploading(false);
     }
+  }
+
+  function handleVoiceSend(objectKey: string, durationMs: number) {
+    const reply = replyDraft ?? undefined;
+    sendMessage('', { type: 'AUDIO', objectKey, durationMs }, false, undefined, reply);
+    setReplyDraft(null);
+    onMessageSent?.();
+  }
+
+  function handleReact(messageId: string, emoji: string) {
+    setReactionPickerFor(null);
+    setOpenMenuFor(null);
+    sendReaction(messageId, emoji);
   }
 
   async function handleForwardTo(target: { conversationId: string; recipientId?: string; groupId?: string }) {
@@ -276,6 +372,23 @@ export function ConversationThreadPage({
       return;
     }
     if (recipientId) navigate(`/chats/${conversationId}/contact/${recipientId}`);
+  }
+
+  /**
+   * Unlike mobile (a purely local SQLite delete — see mobile's
+   * clearConversationMessages — which can let cleared messages reappear on
+   * a later re-sync since the server never forgot them), web isn't
+   * offline-first: there's no local cache to clear, so this instead
+   * delete-for-me's every currently-loaded message individually, the same
+   * real, server-persisted action a single "Delete for me" already uses.
+   * That's the only way "clear chat" is actually durable here.
+   */
+  function clearChat() {
+    setOverflowOpen(false);
+    if (!window.confirm('Clear this chat? Messages will be removed for you only.')) return;
+    for (const m of messages) {
+      deleteMessage(m.messageId, 'me');
+    }
   }
 
   return (
@@ -322,6 +435,9 @@ export function ConversationThreadPage({
               <button onClick={() => { setOverflowOpen(false); goToContact(); }}>{isGroup ? 'Group info' : 'View contact'}</button>
               <button onClick={() => { setOverflowOpen(false); navigate(`/chats/${conversationId}/search`); }}>Search</button>
               <button onClick={() => { setOverflowOpen(false); navigate(`/chats/${conversationId}/media`); }}>Media, links, and docs</button>
+              <button onClick={() => { setMuted(!muted); setOverflowOpen(false); }}>{muted ? 'Unmute notifications' : 'Mute notifications'}</button>
+              <button onClick={() => { setDisappearingPickerOpen(true); setOverflowOpen(false); }}>Disappearing messages</button>
+              <button onClick={clearChat}>Clear chat</button>
               {!isGroup && recipientId && (
                 <button
                   className="destructive"
@@ -358,9 +474,18 @@ export function ConversationThreadPage({
         </div>
       )}
 
-      <div className="thread-body" ref={bodyRef}>
+      <div className={`thread-body wallpaper-${wallpaper}`} ref={bodyRef}>
         {messages.map((m) => {
           const isMine = m.senderId === userId;
+
+          if (m.system) {
+            return (
+              <div key={m.messageId} className="system-message-row" data-message-id={m.messageId}>
+                <span className="system-message-pill">{m.ciphertext}</span>
+              </div>
+            );
+          }
+
           if (m.deleted) {
             return (
               <div key={m.messageId} className={`bubble-row ${isMine ? 'mine' : ''}`} data-message-id={m.messageId}>
@@ -368,11 +493,34 @@ export function ConversationThreadPage({
               </div>
             );
           }
+
+          if (m.mediaType === 'CALL') {
+            return (
+              <div key={m.messageId} className="call-log-row-wrap" data-message-id={m.messageId}>
+                <CallLogRow
+                  callType={m.mediaFileName}
+                  outcome={m.ciphertext}
+                  durationMs={m.mediaDurationMs}
+                  isMine={isMine}
+                  // Web has no 1:1 call-start mechanism yet (only group calls,
+                  // via startGroupCall below) — the pill renders as a plain
+                  // non-interactive log entry until that's added.
+                  onCallBack={undefined}
+                />
+              </div>
+            );
+          }
+
+          const url = m.ciphertext ? firstUrlIn(m.ciphertext) : null;
+          const messageReactions = reactions.filter((r) => r.messageId === m.messageId);
+          const starredHere = starredIds.has(m.messageId);
+
           return (
             <div key={m.messageId} className={`bubble-row ${isMine ? 'mine' : ''}`} data-message-id={m.messageId}>
               <div className={`bubble ${isMine ? 'mine' : 'theirs'} ${highlightedMessageId === m.messageId ? 'highlighted' : ''}`}>
                 {isGroup && !isMine && <div className="bubble-sender">{memberName(m.senderId)}</div>}
                 {m.forwarded && <span className="bubble-forwarded">Forwarded</span>}
+                {starredHere && <span className="bubble-star-badge" title="Starred">★</span>}
                 {!!m.replyToMessageId && (
                   <div
                     className="bubble-quote"
@@ -380,6 +528,12 @@ export function ConversationThreadPage({
                   >
                     <div className="bubble-quote-sender">{memberName(m.replyToSenderId || '')}</div>
                     <div className="bubble-quote-snippet">{m.replyToSnippet}</div>
+                  </div>
+                )}
+                {!!m.replyToStatusId && (
+                  <div className="bubble-quote">
+                    <div className="bubble-quote-sender">Replied to a status</div>
+                    <div className="bubble-quote-snippet">{memberName(m.replyToStatusOwnerId || '')}</div>
                   </div>
                 )}
                 {m.attachments && m.attachments.length > 0 && (
@@ -400,20 +554,44 @@ export function ConversationThreadPage({
                     />
                   </div>
                 )}
-                <div>{m.ciphertext}</div>
+                {m.mediaType === 'AUDIO' && m.mediaObjectKey && (
+                  <div style={{ marginBottom: 4 }}>
+                    <VoiceMessagePlayer objectKey={m.mediaObjectKey} durationMs={m.mediaDurationMs ?? null} isMine={isMine} />
+                  </div>
+                )}
+                {m.mediaType === 'FILE' && m.mediaObjectKey && (
+                  <FileAttachmentRow objectKey={m.mediaObjectKey} fileName={m.mediaFileName} />
+                )}
+                {!!m.ciphertext && <div>{m.ciphertext}</div>}
+                {!!url && <LinkPreviewCard url={url} isMine={isMine} />}
                 <div className="bubble-meta">
                   {m.edited && 'edited · '}
                   {formatTime(m.sentAt)}
+                  {isMine && !isGroup && <MessageTicks status={m.status} />}
                 </div>
+                <ReactionPills reactions={messageReactions} currentUserId={userId} onToggle={(emoji) => handleReact(m.messageId, emoji)} />
 
                 <button className="bubble-kebab" onClick={() => setOpenMenuFor(openMenuFor === m.messageId ? null : m.messageId)}>
                   ⋮
                 </button>
+                {reactionPickerFor === m.messageId && (
+                  <div style={{ position: 'absolute', top: -44, right: 0, zIndex: 10 }}>
+                    <ReactionPicker onPick={(emoji) => handleReact(m.messageId, emoji)} />
+                  </div>
+                )}
                 {openMenuFor === m.messageId && (
                   <div className="bubble-menu" onMouseLeave={() => setOpenMenuFor(null)}>
+                    <button
+                      onClick={() => {
+                        setReactionPickerFor(m.messageId);
+                        setOpenMenuFor(null);
+                      }}
+                    >
+                      React
+                    </button>
                     {isMine && !m.mediaType && <button onClick={() => startEdit(m)}>Edit</button>}
                     <button onClick={() => startReply(m)}>Reply</button>
-                    <button onClick={() => handleCopy(m)}>Copy</button>
+                    {!m.mediaType && <button onClick={() => handleCopy(m)}>Copy</button>}
                     <button
                       onClick={() => {
                         setForwardPickerFor(m);
@@ -424,6 +602,24 @@ export function ConversationThreadPage({
                     </button>
                     {isGroup && !isMine && <button onClick={() => replyPrivately(m)}>Reply privately</button>}
                     <button onClick={() => togglePin(m)}>{m.pinned ? 'Unpin' : 'Pin'}</button>
+                    <button
+                      onClick={() => {
+                        toggleStar(m.messageId);
+                        setOpenMenuFor(null);
+                      }}
+                    >
+                      {starredHere ? 'Unstar' : 'Star'}
+                    </button>
+                    {isGroup && isMine && (
+                      <button
+                        onClick={() => {
+                          setMessageInfoFor(m.messageId);
+                          setOpenMenuFor(null);
+                        }}
+                      >
+                        Info
+                      </button>
+                    )}
                     {isGroup && !isMine && (
                       <button className="destructive" onClick={() => confirmReportSender(m)}>
                         Report {memberName(m.senderId)}
@@ -478,32 +674,43 @@ export function ConversationThreadPage({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,video/*"
           multiple
           style={{ display: 'none' }}
           onChange={handleFilesPicked}
         />
-        <button
-          type="button"
-          className="icon-button"
-          title="Attach photos or videos"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-        >
-          {isUploading ? '…' : '📎'}
-        </button>
-        <input
-          className="composer-input"
-          placeholder="Type a message"
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            notifyTyping();
-          }}
-        />
-        <button type="submit" className="composer-send" disabled={!draft.trim()} title="Send">
-          ➤
-        </button>
+        {!isRecordingVoice && (
+          <button
+            type="button"
+            className="icon-button"
+            title="Attach"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+          >
+            {isUploading ? '…' : '📎'}
+          </button>
+        )}
+        {isRecordingVoice ? (
+          <VoiceRecorderButton onSend={handleVoiceSend} onRecordingChange={setIsRecordingVoice} />
+        ) : (
+          <>
+            <input
+              className="composer-input"
+              placeholder="Type a message"
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                notifyTyping();
+              }}
+            />
+            {draft.trim() ? (
+              <button type="submit" className="composer-send" title="Send">
+                ➤
+              </button>
+            ) : (
+              <VoiceRecorderButton onSend={handleVoiceSend} onRecordingChange={setIsRecordingVoice} />
+            )}
+          </>
+        )}
       </form>
       )}
 
@@ -514,6 +721,41 @@ export function ConversationThreadPage({
           conversations={conversations.filter((c) => c.conversationId !== conversationId)}
           onPick={handleForwardTo}
           onClose={() => setForwardPickerFor(null)}
+        />
+      )}
+
+      {disappearingPickerOpen && (
+        <div className="modal-backdrop" onClick={() => setDisappearingPickerOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>Disappearing messages</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>New messages will disappear from this chat after the selected time. Applies to messages sent from now on.</p>
+            {DISAPPEARING_OPTIONS.map((opt) => (
+              <div
+                key={opt.label}
+                className="conversation-row"
+                style={{ borderBottom: 'none', borderRadius: 10, cursor: 'pointer' }}
+                onClick={() => {
+                  setDisappearing(opt.seconds);
+                  setDisappearingPickerOpen(false);
+                }}
+              >
+                <div className="conversation-row-title" style={{ flex: 1 }}>{opt.label}</div>
+                {disappearingSeconds === opt.seconds && <span>✓</span>}
+              </div>
+            ))}
+            <button className="link-button secondary" onClick={() => setDisappearingPickerOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {messageInfoFor && (
+        <MessageInfoModal
+          conversationId={conversationId}
+          messageId={messageInfoFor}
+          memberNames={memberNames}
+          onClose={() => setMessageInfoFor(null)}
         />
       )}
     </div>

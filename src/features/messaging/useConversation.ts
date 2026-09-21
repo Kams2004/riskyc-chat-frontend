@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAuth } from '../auth/AuthContext';
 import * as messagingApi from './api';
-import type { MediaType, MessageEnvelope } from './api';
+import type { MediaType, MessageEnvelope, ReactionRow } from './api';
 import { ChatSocket } from './ws';
 
 export type OutgoingMedia = { type: MediaType; objectKey: string; fileName?: string | null; durationMs?: number | null };
@@ -33,6 +33,9 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
   const { userId, accessToken } = useAuth();
   const [messages, setMessages] = useState<MessageEnvelope[]>([]);
   const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
+  const [reactions, setReactions] = useState<ReactionRow[]>([]);
+  const [muted, setMutedState] = useState(false);
+  const [disappearingSeconds, setDisappearingSecondsState] = useState<number | null>(null);
   const socketRef = useRef<ChatSocket | null>(null);
   const isGroup = !!groupId;
 
@@ -67,6 +70,9 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
   useEffect(() => {
     let cancelled = false;
     setMessages([]);
+    setReactions([]);
+    setMutedState(false);
+    setDisappearingSecondsState(null);
 
     messagingApi
       .fetchHistory(conversationId)
@@ -78,6 +84,22 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
         }
       })
       .catch((e) => console.warn('[useConversation] fetchHistory failed', e));
+
+    messagingApi
+      .fetchReactions(conversationId)
+      .then((rows) => {
+        if (!cancelled) setReactions(rows);
+      })
+      .catch((e) => console.warn('[useConversation] fetchReactions failed', e));
+
+    messagingApi
+      .fetchConversationSettings(conversationId)
+      .then((settings) => {
+        if (cancelled) return;
+        setMutedState(settings.muted);
+        setDisappearingSecondsState(settings.disappearingMessageSeconds);
+      })
+      .catch((e) => console.warn('[useConversation] fetchConversationSettings failed', e));
 
     const socket = new ChatSocket(accessToken);
     socketRef.current = socket;
@@ -131,6 +153,18 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
           timers.delete(update.userId);
           setTypingUserIds((prev) => prev.filter((id) => id !== update.userId));
         }
+      });
+
+      socket.subscribeToReactions(conversationId, (update) => {
+        setReactions((prev) => {
+          const withoutThisUser = prev.filter((r) => !(r.messageId === update.messageId && r.userId === update.userId));
+          if (update.emoji === null) return withoutThisUser;
+          return [...withoutThisUser, { messageId: update.messageId, userId: update.userId, emoji: update.emoji }];
+        });
+      });
+
+      socket.subscribeToSettings(conversationId, (update) => {
+        setDisappearingSecondsState(update.seconds);
       });
     });
 
@@ -233,5 +267,50 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
     [conversationId]
   );
 
-  return { messages, sendMessage, editMessage, deleteMessage, pinMessage, typingUserIds, notifyTyping };
+  /** Toggling the caller's own emoji on a message — sending the SAME emoji again removes it (see ChatController#react); optimistic local update mirrors what the reaction subscription would echo back. */
+  const sendReaction = useCallback(
+    (messageId: string, emoji: string) => {
+      if (!userId) return;
+      setReactions((prev) => {
+        const existing = prev.find((r) => r.messageId === messageId && r.userId === userId);
+        const withoutThisUser = prev.filter((r) => !(r.messageId === messageId && r.userId === userId));
+        if (existing && existing.emoji === emoji) return withoutThisUser;
+        return [...withoutThisUser, { messageId, userId, emoji }];
+      });
+      socketRef.current?.sendReaction({ messageId, conversationId, emoji });
+    },
+    [conversationId, userId]
+  );
+
+  const setMuted = useCallback(
+    (next: boolean) => {
+      setMutedState(next);
+      messagingApi.setConversationMuted(conversationId, next).catch((e) => console.warn('[useConversation] setMuted failed', e));
+    },
+    [conversationId]
+  );
+
+  const setDisappearing = useCallback(
+    (seconds: number | null) => {
+      setDisappearingSecondsState(seconds);
+      messagingApi.setDisappearingMessages(conversationId, seconds).catch((e) => console.warn('[useConversation] setDisappearing failed', e));
+    },
+    [conversationId]
+  );
+
+  return {
+    messages,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    pinMessage,
+    typingUserIds,
+    notifyTyping,
+    reactions,
+    sendReaction,
+    muted,
+    setMuted,
+    disappearingSeconds,
+    setDisappearing,
+  };
 }

@@ -450,8 +450,26 @@ h1.step-title {
   gap: 6px;
   position: relative;
   background-color: var(--background);
-  background-image: radial-gradient(var(--tint2) 1px, transparent 1px);
+}
+
+/* Three wallpaper variants (Settings → Chat wallpaper), mirroring mobile's
+   ChatWallpaper.tsx — plain dot grid, a richer WhatsApp-style doodle tile of
+   chat/communication glyphs, or no pattern at all. SVG colors are hardcoded
+   (not var(--...)) since a background-image data URI renders outside the
+   document's CSS custom-property scope. */
+.thread-body.wallpaper-dots {
+  background-image: radial-gradient(#ffe0eb 1px, transparent 1px);
   background-size: 28px 28px;
+}
+
+.thread-body.wallpaper-plain {
+  background-image: none;
+}
+
+.thread-body.wallpaper-doodle {
+  background-repeat: repeat;
+  background-size: 220px 260px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='260'%3E%3Cg fill='none' stroke='%23ffb3c9' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' opacity='0.7'%3E%3Cg transform='translate(10,8) rotate(-6)'%3E%3Crect width='20' height='14' rx='6'/%3E%3Cpath d='M5 14v4l5-4'/%3E%3Ccircle cx='6' cy='7' r='1' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='10' cy='7' r='1' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='14' cy='7' r='1' fill='%23ffb3c9' stroke='none'/%3E%3C/g%3E%3Cg transform='translate(150,20) scale(0.7) rotate(18)'%3E%3Cpath d='M1 19L19 1M19 1L8 9M19 1L12 19L8 9L1 19'/%3E%3C/g%3E%3Cg transform='translate(185,75) rotate(-10)'%3E%3Crect width='20' height='14' rx='3'/%3E%3Cpath d='M2 12l4-4 3 3 4-5 3 6'/%3E%3Ccircle cx='13' cy='4' r='1.4' fill='%23ffb3c9' stroke='none'/%3E%3C/g%3E%3Cg transform='translate(18,78) scale(0.8) rotate(8)'%3E%3Cpath d='M11 19C5 13 1 9 1 5.5 1 2.5 3.5 0 6.5 0 8.5 0 10 1.2 11 2.8 12 1.2 13.5 0 15.5 0 18.5 0 21 2.5 21 5.5 21 9 17 13 11 19Z'/%3E%3C/g%3E%3Cg transform='translate(95,95) rotate(-4)'%3E%3Crect width='20' height='14' rx='6'/%3E%3Cpath d='M5 14v4l5-4'/%3E%3C/g%3E%3Cg transform='translate(50,135) rotate(-14)'%3E%3Crect width='11' height='19' rx='2.5'/%3E%3Ccircle cx='5.5' cy='16' r='1' fill='%23ffb3c9' stroke='none'/%3E%3C/g%3E%3Cg transform='translate(160,145) rotate(10)'%3E%3Ccircle cx='9' cy='9' r='9'/%3E%3Ccircle cx='5.5' cy='7' r='1' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='12.5' cy='7' r='1' fill='%23ffb3c9' stroke='none'/%3E%3Cpath d='M4.5 11.5c1.6 2.2 7.4 2.2 9 0'/%3E%3C/g%3E%3Cg transform='translate(5,185) rotate(6)'%3E%3Crect y='4' width='20' height='13' rx='2.5'/%3E%3Cpath d='M7 4l2-3h4l2 3'/%3E%3Ccircle cx='10' cy='10.5' r='3.4'/%3E%3C/g%3E%3Cg transform='translate(75,205) rotate(-8)'%3E%3Ccircle cx='5' cy='5' r='3'/%3E%3Ccircle cx='15' cy='5' r='3'/%3E%3Cpath d='M0 19c0-5 3-8 5-8M20 19c0-5-3-8-5-8'/%3E%3Cpath d='M4 19c0-6 4.5-10 6-10s6 4 6 10'/%3E%3C/g%3E%3Cg transform='translate(180,215) rotate(14)'%3E%3Crect width='20' height='14' rx='6'/%3E%3Cpath d='M5 14v4l5-4'/%3E%3C/g%3E%3Cg transform='translate(25,240) scale(0.65) rotate(20)'%3E%3Cpath d='M1 19L19 1M19 1L8 9M19 1L12 19L8 9L1 19'/%3E%3C/g%3E%3Ccircle cx='70' cy='25' r='1.4' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='200' cy='25' r='1.4' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='45' cy='60' r='1.4' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='135' cy='115' r='1.4' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='10' cy='160' r='1.4' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='205' cy='180' r='1.4' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='115' cy='180' r='1.4' fill='%23ffb3c9' stroke='none'/%3E%3Ccircle cx='100' cy='250' r='1.4' fill='%23ffb3c9' stroke='none'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 .bubble-row {
@@ -879,6 +897,421 @@ h1.step-title {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+}
+
+/* ---------- Modals (message info, disappearing-messages picker) ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 20px;
+  width: 340px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.message-info-group {
+  margin-top: 14px;
+}
+
+.message-info-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.message-info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.message-info-status {
+  color: var(--text-muted);
+}
+
+/* ---------- System messages (centered, non-bubble) ---------- */
+
+.system-message-row {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.system-message-pill {
+  background: var(--tint1);
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+/* ---------- Call log pill (CALL messages rendered inline in the thread) ---------- */
+
+.call-log-row-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 2px 0;
+}
+
+.call-log-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.call-log-pill:disabled {
+  cursor: default;
+}
+
+.call-log-pill.attention {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.call-log-duration {
+  color: var(--text-muted);
+}
+
+/* ---------- File attachment row (FILE messages) ---------- */
+
+.file-attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.file-attachment-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--tint2);
+  color: var(--brand-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bubble.mine .file-attachment-icon {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.file-attachment-name {
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Link preview card ---------- */
+
+.link-preview-card {
+  display: block;
+  margin-top: 6px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.06);
+  text-decoration: none;
+  color: inherit;
+}
+
+.bubble.mine .link-preview-card {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.link-preview-image {
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  display: block;
+}
+
+.link-preview-text {
+  padding: 8px 10px;
+}
+
+.link-preview-site {
+  font-size: 10px;
+  opacity: 0.7;
+  letter-spacing: 0.03em;
+}
+
+.link-preview-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.link-preview-description {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ---------- Message ticks (sent/delivered/read) ---------- */
+
+.bubble-ticks {
+  margin-left: 4px;
+  vertical-align: middle;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.bubble-ticks.read {
+  color: #5bc4ff;
+}
+
+/* ---------- Starred badge ---------- */
+
+.bubble-star-badge {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  font-size: 12px;
+  color: var(--brand-500);
+}
+
+/* ---------- Reactions ---------- */
+
+.reaction-picker {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 6px 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.reaction-picker-emoji {
+  border: none;
+  background: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 999px;
+}
+
+.reaction-picker-emoji:hover {
+  background: var(--tint1);
+}
+
+.reaction-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.reaction-pill {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.reaction-pill.mine {
+  border-color: var(--brand-500);
+  background: var(--tint1);
+}
+
+.reaction-pill-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---------- Voice message player (AUDIO messages) ---------- */
+
+.voice-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  padding: 2px 0;
+}
+
+.voice-play-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: var(--tint2);
+  color: var(--brand-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.voice-play-button.mine {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.voice-play-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.voice-track {
+  flex: 1;
+  min-width: 0;
+}
+
+.voice-waveform {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.voice-bar {
+  width: 2.5px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.bubble.mine .voice-bar {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.voice-bar.played {
+  background: var(--brand-500);
+}
+
+.bubble.mine .voice-bar.played {
+  background: #fff;
+}
+
+.voice-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-size: 10.5px;
+  opacity: 0.75;
+}
+
+.voice-speed {
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.bubble.mine .voice-speed {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ---------- Voice recorder (composer) ---------- */
+
+.voice-recording-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-recording-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--error);
+  animation: voice-recording-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes voice-recording-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.voice-recording-timer {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+/* ---------- Wallpaper picker (Settings) ---------- */
+
+.wallpaper-swatch-row {
+  display: flex;
+  gap: 10px;
+}
+
+.wallpaper-swatch {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  border: 2px solid var(--hairline);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--background);
+  background-size: 20px 20px;
+}
+
+.wallpaper-swatch.wallpaper-dots {
+  background-image: radial-gradient(#ffe0eb 1.4px, transparent 1.4px);
+}
+
+.wallpaper-swatch.wallpaper-doodle {
+  background-image: radial-gradient(#ffb3c9 1.4px, transparent 1.4px);
+}
+
+.wallpaper-swatch.wallpaper-plain {
+  background-image: none;
+}
+
+.wallpaper-swatch.active {
+  border-color: var(--brand-500);
+}
+
+.wallpaper-swatch-check {
+  color: var(--brand-600);
+  font-size: 16px;
+  font-weight: 700;
+  text-shadow: 0 0 3px var(--surface);
 }
 
 /* ---------- Responsive: narrow / mobile-browser widths ---------- */

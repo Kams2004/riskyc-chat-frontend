@@ -2,10 +2,18 @@ import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
 import { useAuth } from '../features/auth/AuthContext';
+import { setWallpaperVariant, useWallpaperVariant, type WallpaperVariant } from '../lib/wallpaper';
+
+const WALLPAPER_OPTIONS: { value: WallpaperVariant; label: string }[] = [
+  { value: 'doodle', label: 'Doodle' },
+  { value: 'dots', label: 'Dots' },
+  { value: 'plain', label: 'Plain' },
+];
 
 export function SettingsPage() {
   const { displayName, avatarObjectKey } = useAuth();
   const navigate = useNavigate();
+  const wallpaper = useWallpaperVariant();
 
   return (
     <div className="settings-page">
@@ -31,6 +39,23 @@ export function SettingsPage() {
       <div className="settings-row" onClick={() => navigate('/settings/devices')} style={{ cursor: 'pointer' }}>
         <p className="settings-row-label">Logged-in devices</p>
         <p className="settings-row-value">See where you're signed in, sign out remotely</p>
+      </div>
+
+      <div className="settings-row">
+        <p className="settings-row-label">Chat wallpaper</p>
+        <div className="wallpaper-swatch-row">
+          {WALLPAPER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`wallpaper-swatch wallpaper-${opt.value} ${wallpaper === opt.value ? 'active' : ''}`}
+              onClick={() => setWallpaperVariant(opt.value)}
+              title={opt.label}
+            >
+              {wallpaper === opt.value && <span className="wallpaper-swatch-check">✓</span>}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="settings-row" onClick={() => navigate('/privacy')} style={{ cursor: 'pointer' }}>

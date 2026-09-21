@@ -1,15 +1,19 @@
 import { useMediaUrl } from '../features/media/useMediaUrl';
 import type { AttachmentItem } from '../features/messaging/api';
 
-const GRID_SIZE = 260;
-const GAP = 3;
+// A percentage-of-container width rather than a fixed pixel value — the
+// container itself is capped at `min(260px, 100%)` (see the wrapping div
+// below), so this whole grid scales down instead of overflowing a narrow
+// phone-width browser viewport (a real, unverified-safe overflow risk when
+// this used a hardcoded 260px regardless of viewport).
+const GAP_PERCENT = 1.5;
 
-function Tile({ item, size, onClick, overlay }: { item: AttachmentItem; size: number; onClick: () => void; overlay?: React.ReactNode }) {
+function Tile({ item, widthPercent, onClick, overlay }: { item: AttachmentItem; widthPercent: number; onClick: () => void; overlay?: React.ReactNode }) {
   const url = useMediaUrl(item.mediaObjectKey);
   return (
     <div
       onClick={onClick}
-      style={{ width: size, height: size, position: 'relative', cursor: 'pointer', background: 'rgba(0,0,0,0.08)' }}
+      style={{ width: `${widthPercent}%`, aspectRatio: '1', position: 'relative', cursor: 'pointer', background: 'rgba(0,0,0,0.08)' }}
     >
       {url && (
         <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -40,38 +44,40 @@ function Tile({ item, size, onClick, overlay }: { item: AttachmentItem; size: nu
   );
 }
 
-/** WhatsApp-style collage — same layout rules as mobile's MessageAttachmentGrid. */
+/** WhatsApp-style collage — same layout rules as mobile's MessageAttachmentGrid, sized as percentages of a capped-but-fluid container so it can't overflow a narrow viewport. */
 export function MessageAttachmentGrid({ items, onOpen }: { items: AttachmentItem[]; onOpen: (index: number) => void }) {
   if (items.length === 0) return null;
 
+  const containerStyle: React.CSSProperties = { width: 'min(260px, 100%)', borderRadius: 12, overflow: 'hidden' };
+
   if (items.length === 1) {
     return (
-      <div style={{ width: GRID_SIZE, height: GRID_SIZE, borderRadius: 12, overflow: 'hidden' }}>
-        <Tile item={items[0]} size={GRID_SIZE} onClick={() => onOpen(0)} />
+      <div style={containerStyle}>
+        <Tile item={items[0]} widthPercent={100} onClick={() => onOpen(0)} />
       </div>
     );
   }
 
   if (items.length <= 3) {
-    const size = (GRID_SIZE - GAP) / 2;
+    const halfWidth = 50 - GAP_PERCENT / 2;
     return (
-      <div style={{ width: GRID_SIZE, display: 'flex', flexWrap: 'wrap', gap: GAP, borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ ...containerStyle, display: 'flex', flexWrap: 'wrap', gap: `${GAP_PERCENT}%` }}>
         {items.map((item, i) => (
-          <Tile key={i} item={item} size={items.length === 3 && i === 2 ? GRID_SIZE : size} onClick={() => onOpen(i)} />
+          <Tile key={i} item={item} widthPercent={items.length === 3 && i === 2 ? 100 : halfWidth} onClick={() => onOpen(i)} />
         ))}
       </div>
     );
   }
 
-  const size = (GRID_SIZE - GAP) / 2;
+  const halfWidth = 50 - GAP_PERCENT / 2;
   const remaining = items.length - 4;
   return (
-    <div style={{ width: GRID_SIZE, display: 'flex', flexWrap: 'wrap', gap: GAP, borderRadius: 12, overflow: 'hidden' }}>
+    <div style={{ ...containerStyle, display: 'flex', flexWrap: 'wrap', gap: `${GAP_PERCENT}%` }}>
       {items.slice(0, 4).map((item, i) => (
         <Tile
           key={i}
           item={item}
-          size={size}
+          widthPercent={halfWidth}
           onClick={() => onOpen(i)}
           overlay={
             i === 3 && remaining > 0 ? (

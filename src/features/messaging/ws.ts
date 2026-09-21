@@ -14,6 +14,11 @@ import type {
   TypingUpdate,
 } from './api';
 
+export type ReactionRequest = { messageId: string; conversationId: string; emoji: string };
+/** emoji=null means userId removed their reaction. */
+export type ReactionUpdate = { messageId: string; userId: string; emoji: string | null };
+export type DisappearingChanged = { conversationId: string; seconds: number | null; changedBy: string };
+
 /**
  * Same public surface as mobile's ChatSocket (features/messaging/ws.ts) —
  * same STOMP destinations, since it's the same server. Simpler internally:
@@ -78,6 +83,20 @@ export class ChatSocket {
     });
   }
 
+  /** Live reaction add/remove for whoever has this thread open. */
+  subscribeToReactions(conversationId: string, onReaction: (update: ReactionUpdate) => void) {
+    return this.client.subscribe(`/topic/conversation.${conversationId}.reactions`, (frame: IMessage) => {
+      onReaction(JSON.parse(frame.body) as ReactionUpdate);
+    });
+  }
+
+  /** Disappearing-messages duration changed for this conversation. */
+  subscribeToSettings(conversationId: string, onChanged: (update: DisappearingChanged) => void) {
+    return this.client.subscribe(`/topic/conversation.${conversationId}.settings`, (frame: IMessage) => {
+      onChanged(JSON.parse(frame.body) as DisappearingChanged);
+    });
+  }
+
   /** Mirrors this account's own read/delivery acks across its other devices — see mobile's identical method and ChatController#ack/#ackGroup. Web doesn't have a persisted unread badge to update yet, but the subscription is here for parity/future use. */
   subscribeToUserReadState(onUpdate: (update: MessageStatusUpdate | GroupReceiptUpdate) => void) {
     return this.client.subscribe('/user/queue/read-state', (frame: IMessage) => {
@@ -115,6 +134,10 @@ export class ChatSocket {
 
   sendPin(request: MessagePinRequest) {
     this.enqueue({ destination: '/app/chat.pin', body: JSON.stringify(request) });
+  }
+
+  sendReaction(request: ReactionRequest) {
+    this.enqueue({ destination: '/app/chat.react', body: JSON.stringify(request) });
   }
 
   sendGroupAck(request: GroupAckRequest) {
