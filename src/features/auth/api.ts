@@ -41,3 +41,17 @@ export function verifyOtp(identifier: Identifier, code: string, deviceLabel?: st
     body: JSON.stringify({ ...identifierBody(identifier), code, deviceLabel, platform: 'web' }),
   });
 }
+
+/** WhatsApp-Web-style QR device linking — see auth-service's PairingController/PairingService. No auth on any of these three: the pairing token itself (32 random bytes) is what gates them, same trust model as an OTP code. */
+export function startPairing(deviceLabel: string): Promise<{ token: string }> {
+  return apiFetch(`${config.authServiceUrl}/api/auth/pairing/start`, {
+    method: 'POST',
+    body: JSON.stringify({ deviceLabel }),
+  });
+}
+
+export type PairingStatus = { status: 'PENDING' | 'APPROVED' | 'DENIED' | 'EXPIRED'; session: VerifyOtpResponse | null };
+
+export function pollPairingStatus(token: string): Promise<PairingStatus> {
+  return apiFetch(`${config.authServiceUrl}/api/auth/pairing/${encodeURIComponent(token)}/status`);
+}

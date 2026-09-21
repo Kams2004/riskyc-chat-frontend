@@ -1,25 +1,107 @@
+import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import * as authApi from '../features/auth/api';
 import { useAuth } from '../features/auth/AuthContext';
 import type { VerifyOtpResponse } from '../features/auth/api';
+import { currentDeviceLabel } from '../lib/deviceLabel';
 import { maskIdentifier } from '../lib/mask';
 import { ApiError } from '../lib/httpClient';
 
 type Mode = 'phone' | 'email';
 type Step = 'identifier' | 'verify' | 'done';
+type View = 'qr' | 'phone';
 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 const PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
 const RESEND_COOLDOWN_SECONDS = 45;
 const CODE_LENGTH = 6;
+const PAIRING_POLL_MS = 1500;
+// A little under auth-service's own 3-minute PENDING TTL (PairingService),
+// so a fresh QR is always requested before the current one could actually
+// expire server-side — the user should never be staring at a dead code.
+const PAIRING_REFRESH_MS = 2 * 60 * 1000 + 30 * 1000;
+
+/** WhatsApp-Web-style QR device linking — see auth-service's PairingController. Polls until the already-signed-in mobile app scans and approves this code, then signs in exactly like the OTP flow's system-account instant-login case (same completeSystemLogin call, same shaped response). */
+function QrPanel({ onSignedIn }: { onSignedIn: (res: VerifyOtpResponse) => void }) {
+  const [token, setToken] = useState<string | null>(null);
+  const [errored, setErrored] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const signedInRef = useRef(false);
+
+  function clearTimers() {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (refreshRef.current) clearTimeout(refreshRef.current);
+  }
+
+  async function startPairing() {
+    clearTimers();
+    setErrored(false);
+    try {
+      const { token: newToken } = await authApi.startPairing(currentDeviceLabel());
+      setToken(newToken);
+
+      pollRef.current = setInterval(async () => {
+        if (signedInRef.current) return;
+        try {
+          const result = await authApi.pollPairingStatus(newToken);
+          if (result.status === 'APPROVED' && result.session) {
+            signedInRef.current = true;
+            clearTimers();
+            onSignedIn(result.session);
+          } else if (result.status === 'DENIED' || result.status === 'EXPIRED') {
+            clearTimers();
+            startPairing();
+          }
+        } catch {
+          // A dropped poll just tries again next tick — no need to tear down the QR over one failed request.
+        }
+      }, PAIRING_POLL_MS);
+
+      refreshRef.current = setTimeout(startPairing, PAIRING_REFRESH_MS);
+    } catch {
+      setErrored(true);
+    }
+  }
+
+  useEffect(() => {
+    startPairing();
+    return clearTimers;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="qr-panel">
+      <div className="qr-frame">
+        {errored ? (
+          <button type="button" className="button" onClick={startPairing}>
+            Try again
+          </button>
+        ) : token ? (
+          <QRCodeSVG value={`riskycchat://pair/${token}`} size={220} level="M" />
+        ) : (
+          <span className="spinner" aria-hidden="true" />
+        )}
+      </div>
+      <ol className="qr-steps">
+        <li>Open RiskyC Chat on your phone</li>
+        <li>
+          Go to <strong>Settings → Logged-in devices → Link a device</strong>
+        </li>
+        <li>Point your phone at this screen to scan the code</li>
+      </ol>
+    </div>
+  );
+}
 
 /** React port of the original vanilla-TS sign-in flow (same OTP request/verify logic), now feeding a real session via AuthContext instead of a static "open the app" screen. */
 export function SignInPage() {
   const navigate = useNavigate();
   const { signInWithOtp, completeSystemLogin } = useAuth();
 
+  const [view, setView] = useState<View>('qr');
   const [mode, setMode] = useState<Mode>('phone');
   const [step, setStep] = useState<Step>('identifier');
   const [phone, setPhone] = useState('');
@@ -47,6 +129,13 @@ export function SignInPage() {
   useEffect(() => {
     if (step === 'verify') codeInputRef.current?.focus();
   }, [step]);
+
+  function onQrSignedIn(res: VerifyOtpResponse) {
+    completeSystemLogin(res);
+    setDoneMessage('Welcome back — redirecting to your chats.');
+    setStep('done');
+    setTimeout(() => navigate('/chats', { replace: true }), 600);
+  }
 
   async function sendCode(): Promise<'ok' | 'sms_trial_limit' | 'error' | { immediate: VerifyOtpResponse }> {
     try {
@@ -155,7 +244,7 @@ export function SignInPage() {
 
   return (
     <div className="auth-shell">
-      <main className="card">
+      <main className={`card ${view === 'qr' ? 'card-wide' : ''}`}>
         <div className="brand">
           <div className="logo">RC</div>
           <span className="wordmark">
@@ -163,7 +252,18 @@ export function SignInPage() {
           </span>
         </div>
 
-        {step === 'identifier' && (
+        {view === 'qr' && step === 'identifier' && (
+          <section>
+            <h1 className="step-title">Log in to RiskyC Chat</h1>
+            <p className="subtitle">Scan the QR code with your phone to link this browser as a device.</p>
+            <QrPanel onSignedIn={onQrSignedIn} />
+            <button type="button" className="link-button" onClick={() => { setView('phone'); setStep('identifier'); }}>
+              Log in with phone number or email
+            </button>
+          </section>
+        )}
+
+        {view === 'phone' && step === 'identifier' && (
           <section>
             <h1 className="step-title">Enter your {mode === 'phone' ? 'phone number' : 'email address'}</h1>
             <p className="subtitle">RiskyC Chat will send a verification code to confirm it's you.</p>
@@ -208,11 +308,14 @@ export function SignInPage() {
               <button type="submit" className="button" disabled={!value || isSending}>
                 {isSending ? <span className="spinner" aria-hidden="true" /> : <span>Send code</span>}
               </button>
+              <button type="button" className="link-button" onClick={() => setView('qr')}>
+                Log in with QR code
+              </button>
             </form>
           </section>
         )}
 
-        {step === 'verify' && (
+        {view === 'phone' && step === 'verify' && (
           <section>
             <h1 className="step-title">Enter the code</h1>
             <p className="subtitle">
