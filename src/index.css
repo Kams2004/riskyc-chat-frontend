@@ -1596,16 +1596,18 @@ h1.step-title {
 
 .voice-waveform {
   display: flex;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: center;
+  gap: 1.5px;
   height: 22px;
   cursor: pointer;
+  position: relative;
 }
 
 .voice-bar {
-  width: 2.5px;
-  border-radius: 2px;
+  width: 1.5px;
+  border-radius: 1px;
   background: rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
 }
 
 .bubble.mine .voice-bar {
@@ -1618,6 +1620,23 @@ h1.step-title {
 
 .bubble.mine .voice-bar.played {
   background: #fff;
+}
+
+.voice-scrubber {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--brand-500);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+}
+
+.bubble.mine .voice-scrubber {
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--brand-600);
 }
 
 .voice-meta {
