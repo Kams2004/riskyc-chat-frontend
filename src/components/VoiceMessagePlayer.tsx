@@ -85,28 +85,41 @@ async function loadRealWaveform(url: string, objectKey: string): Promise<number[
   return promise;
 }
 
+/** Comma-separated 0-100 ints, as written by mobile's VoiceRecorder (encodeWaveform) — real amplitude data captured live during recording, sent through the message itself rather than derived client-side. */
+function parseServerWaveform(encoded: string): number[] | null {
+  const parsed = encoded.split(',').map((v) => Math.max(0, Math.min(100, parseInt(v, 10) || 0)) / 100);
+  return parsed.length > 0 ? parsed : null;
+}
+
 /** Web port of mobile's VoiceMessageBubble — HTML5 <audio> instead of expo-audio, click-to-seek on the waveform instead of a pan gesture. */
 export function VoiceMessagePlayer({
   objectKey,
   durationMs,
+  waveform,
   isMine,
 }: {
   objectKey: string;
   durationMs: number | null;
+  /** Server-supplied real waveform (set when the message was recorded on mobile) — when present, this is used directly and the audio is never fetched/decoded just to draw bars. */
+  waveform?: string | null;
   isMine: boolean;
 }) {
   const { ref: containerRef, inView } = useInView<HTMLDivElement>();
   const url = useMediaUrl(inView ? objectKey : null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const waveformRef = useRef<HTMLDivElement | null>(null);
-  const [bars, setBars] = useState<number[]>(() => waveformCache.get(objectKey) ?? pseudoWaveform(objectKey));
+  const serverWaveform = waveform ? parseServerWaveform(waveform) : null;
+  const [bars, setBars] = useState<number[]>(() => serverWaveform ?? waveformCache.get(objectKey) ?? pseudoWaveform(objectKey));
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState((durationMs ?? 0) / 1000);
   const [speed, setSpeed] = useState<Speed>(1);
 
   useEffect(() => {
-    if (!url) return;
+    // A message recorded on mobile already carries real amplitude data —
+    // decoding the audio here too would just re-derive the same kind of
+    // information at the cost of a full download, so skip it entirely.
+    if (serverWaveform || !url) return;
     let cancelled = false;
     loadRealWaveform(url, objectKey).then((real) => {
       if (!cancelled) setBars(real);
@@ -114,11 +127,11 @@ export function VoiceMessagePlayer({
     return () => {
       cancelled = true;
     };
-  }, [url, objectKey]);
+  }, [url, objectKey, serverWaveform]);
 
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
   const remaining = isPlaying ? duration - currentTime : duration;
-  const playedBars = Math.round(progress * BAR_COUNT);
+  const playedBars = Math.round(progress * bars.length);
 
   function togglePlay() {
     const audio = audioRef.current;

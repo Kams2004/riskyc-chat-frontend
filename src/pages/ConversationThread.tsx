@@ -744,7 +744,7 @@ export function ConversationThreadPage({
                 )}
                 {m.mediaType === 'AUDIO' && m.mediaObjectKey && (
                   <div style={{ marginBottom: 4 }}>
-                    <VoiceMessagePlayer objectKey={m.mediaObjectKey} durationMs={m.mediaDurationMs ?? null} isMine={isMine} />
+                    <VoiceMessagePlayer objectKey={m.mediaObjectKey} durationMs={m.mediaDurationMs ?? null} waveform={m.waveform} isMine={isMine} />
                   </div>
                 )}
                 {m.mediaType === 'FILE' && m.mediaObjectKey && (
