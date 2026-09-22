@@ -882,27 +882,24 @@ export function ConversationThreadPage({
             {isUploading ? '…' : <Icon icon={faPaperclip} />}
           </button>
         )}
-        {isRecordingVoice ? (
+        {!isRecordingVoice && (
+          <input
+            className="composer-input"
+            placeholder="Type a message"
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              notifyTyping();
+            }}
+          />
+        )}
+        {!isRecordingVoice && draft.trim() && (
+          <button type="submit" className="composer-send" title="Send">
+            <Icon icon={faPaperPlane} />
+          </button>
+        )}
+        {(isRecordingVoice || !draft.trim()) && (
           <VoiceRecorderButton onSend={handleVoiceSend} onRecordingChange={setIsRecordingVoice} />
-        ) : (
-          <>
-            <input
-              className="composer-input"
-              placeholder="Type a message"
-              value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                notifyTyping();
-              }}
-            />
-            {draft.trim() ? (
-              <button type="submit" className="composer-send" title="Send">
-                <Icon icon={faPaperPlane} />
-              </button>
-            ) : (
-              <VoiceRecorderButton onSend={handleVoiceSend} onRecordingChange={setIsRecordingVoice} />
-            )}
-          </>
         )}
       </form>
       )}
