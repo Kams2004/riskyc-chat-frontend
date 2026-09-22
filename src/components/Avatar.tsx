@@ -1,13 +1,20 @@
+import { faUser } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useState } from 'react';
 
 import { useMediaUrl } from '../features/media/useMediaUrl';
 import { useTheme } from '../lib/ThemeContext';
+import { Icon } from './Icon';
 
 type AvatarProps = {
   objectKey?: string | null;
   label: string;
   size?: number;
 };
+
+/** Same heuristic as mobile's Avatar.tsx — true when the label is a raw phone number (digits/+/spaces/dashes) rather than a real saved name. */
+function looksLikePhoneNumber(label: string): boolean {
+  return /^[+\d][\d\s\-().]{3,}$/.test(label.trim());
+}
 
 /**
  * Ported from mobile/src/components/Avatar.tsx. A presigned avatar URL
@@ -30,6 +37,8 @@ export function Avatar({ objectKey, label, size = 44 }: AvatarProps) {
     return <img src={resolvedUrl} alt={label} style={{ ...dimension, objectFit: 'cover' }} onError={() => setLoadFailed(true)} />;
   }
 
+  const showIcon = !label || looksLikePhoneNumber(label);
+
   return (
     <div
       style={{
@@ -41,9 +50,13 @@ export function Avatar({ objectKey, label, size = 44 }: AvatarProps) {
         flexShrink: 0,
       }}
     >
-      <span style={{ color: colors.brand700, fontSize: size * 0.32, fontWeight: 700 }}>
-        {label.slice(0, 2).toUpperCase()}
-      </span>
+      {showIcon ? (
+        <Icon icon={faUser} style={{ color: colors.brand700, fontSize: size * 0.42 }} />
+      ) : (
+        <span style={{ color: colors.brand700, fontSize: size * 0.32, fontWeight: 700 }}>
+          {label.slice(0, 2).toUpperCase()}
+        </span>
+      )}
     </div>
   );
 }
