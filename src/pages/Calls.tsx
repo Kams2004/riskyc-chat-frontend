@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
 import { IconRail } from '../components/IconRail';
+import { Spinner } from '../components/Spinner';
 import { useAuth } from '../features/auth/AuthContext';
 import { listCallHistory, type CallResult } from '../features/calls/api';
 import { useCall } from '../features/calls/CallContext';
@@ -77,7 +78,7 @@ export function CallsPage() {
           <strong style={{ fontSize: 16 }}>Calls</strong>
         </div>
         <div className="sidebar-list">
-          {isLoading && <p style={{ padding: 18, color: 'var(--text-muted)' }}>Loading…</p>}
+          {isLoading && <div className="loading-center"><Spinner /></div>}
           {!isLoading && calls.length === 0 && <p style={{ padding: 18, color: 'var(--text-muted)' }}>No calls yet.</p>}
           {calls.map((item) => {
             const myBytesSent = item.isOutgoing ? item.callerBytesSent : item.calleeBytesSent;

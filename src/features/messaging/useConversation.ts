@@ -3,6 +3,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import * as messagingApi from './api';
 import type { MediaType, MessageEnvelope, ReactionRow } from './api';
+import {
+  getCached,
+  hasReachedStart,
+  initialWindowSince,
+  mergeCached,
+  nextWindowBounds,
+  prependOlder,
+  removeFromCache,
+  seedCache,
+  upsertLive,
+} from './messageCache';
 import { ChatSocket } from './ws';
 
 export type OutgoingMedia = { type: MediaType; objectKey: string; fileName?: string | null; durationMs?: number | null };
@@ -32,6 +43,12 @@ export type UseConversationParams = {
 export function useConversation({ conversationId, recipientId, groupId }: UseConversationParams) {
   const { userId, accessToken } = useAuth();
   const [messages, setMessages] = useState<MessageEnvelope[]>([]);
+  const [failedMessageIds, setFailedMessageIds] = useState<Set<string>>(new Set());
+  const pendingEnvelopesRef = useRef<Map<string, MessageEnvelope>>(new Map());
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const emptyWindowCountRef = useRef(0);
   const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
   const [muted, setMutedState] = useState(false);
@@ -45,15 +62,19 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
   const TYPING_IDLE_MS = 2500;
   const TYPING_EXPIRY_MS = 6000;
 
-  const upsert = useCallback((envelope: MessageEnvelope) => {
-    setMessages((prev) => {
-      const idx = prev.findIndex((m) => m.messageId === envelope.messageId);
-      if (idx === -1) return [...prev, envelope].sort((a, b) => a.sentAt.localeCompare(b.sentAt));
-      const next = prev.slice();
-      next[idx] = envelope;
-      return next;
-    });
-  }, []);
+  const upsert = useCallback(
+    (envelope: MessageEnvelope) => {
+      upsertLive(conversationId, envelope);
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.messageId === envelope.messageId);
+        if (idx === -1) return [...prev, envelope].sort((a, b) => a.sentAt.localeCompare(b.sentAt));
+        const next = prev.slice();
+        next[idx] = envelope;
+        return next;
+      });
+    },
+    [conversationId]
+  );
 
   const ackIfNotMine = useCallback(
     (messageId: string, senderId: string, recipient: string) => {
@@ -69,21 +90,50 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
 
   useEffect(() => {
     let cancelled = false;
-    setMessages([]);
     setReactions([]);
     setMutedState(false);
     setDisappearingSecondsState(null);
+    emptyWindowCountRef.current = 0;
 
-    messagingApi
-      .fetchHistory(conversationId)
-      .then((history) => {
-        if (cancelled) return;
-        setMessages(history.slice().sort((a, b) => a.sentAt.localeCompare(b.sentAt)));
-        for (const envelope of history) {
-          ackIfNotMine(envelope.messageId, envelope.senderId, envelope.recipientId);
-        }
-      })
-      .catch((e) => console.warn('[useConversation] fetchHistory failed', e));
+    // Cache hit — show it instantly (no "loading" flash for a conversation
+    // this session already visited), then still do a quiet catch-up fetch
+    // for anything sent while this thread was unmounted (the live socket
+    // subscription below only covers messages arriving AFTER it connects).
+    const cached = getCached(conversationId);
+    if (cached) {
+      setMessages(cached);
+      setIsInitialLoading(false);
+      setHasMoreHistory(!hasReachedStart(conversationId));
+      const catchUpSince = cached.length > 0 ? cached[cached.length - 1].sentAt : initialWindowSince();
+      messagingApi
+        .fetchHistory(conversationId, catchUpSince)
+        .then((fresh) => {
+          if (cancelled || fresh.length === 0) return;
+          mergeCached(conversationId, fresh);
+          setMessages(getCached(conversationId) ?? cached);
+          for (const envelope of fresh) ackIfNotMine(envelope.messageId, envelope.senderId, envelope.recipientId);
+        })
+        .catch((e) => console.warn('[useConversation] catch-up fetchHistory failed', e));
+    } else {
+      setMessages([]);
+      setIsInitialLoading(true);
+      const since = initialWindowSince();
+      messagingApi
+        .fetchHistory(conversationId, since)
+        .then((history) => {
+          if (cancelled) return;
+          seedCache(conversationId, history, since);
+          setMessages(getCached(conversationId) ?? history);
+          setIsInitialLoading(false);
+          for (const envelope of history) {
+            ackIfNotMine(envelope.messageId, envelope.senderId, envelope.recipientId);
+          }
+        })
+        .catch((e) => {
+          console.warn('[useConversation] fetchHistory failed', e);
+          if (!cancelled) setIsInitialLoading(false);
+        });
+    }
 
     messagingApi
       .fetchReactions(conversationId)
@@ -233,7 +283,17 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
         replyToSnippet: replyTo?.snippet ?? null,
       };
       upsert(envelope);
+      pendingEnvelopesRef.current.set(envelope.messageId, envelope);
       stopTyping();
+      // navigator.onLine is a real, if imperfect, "does this device have a
+      // network path at all" signal — a send attempted while offline is
+      // marked failed immediately rather than silently queued forever (the
+      // socket's own enqueue() below would otherwise hold it in memory with
+      // no user-visible sign anything's wrong until/unless it reconnects).
+      if (!navigator.onLine) {
+        setFailedMessageIds((prev) => new Set(prev).add(envelope.messageId));
+        return;
+      }
       socketRef.current?.send(envelope);
     },
     [conversationId, groupId, isGroup, recipientId, stopTyping, upsert]
@@ -257,6 +317,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
   const deleteMessage = useCallback(
     (messageId: string, scope: 'everyone' | 'me') => {
       if (scope === 'me') {
+        removeFromCache(conversationId, messageId);
         setMessages((prev) => prev.filter((m) => m.messageId !== messageId));
         socketRef.current?.sendDelete({ conversationId, messageId, scope: 'ME' });
         return;
@@ -298,9 +359,57 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
     [conversationId]
   );
 
+  /** The red "Try again" action on a message that failed to send while offline — re-sends the exact same envelope (still held in pendingEnvelopesRef) rather than composing a new one, so retrying doesn't create a duplicate message with a new id/timestamp. */
+  const retrySendMessage = useCallback((messageId: string) => {
+    const envelope = pendingEnvelopesRef.current.get(messageId);
+    if (!envelope) return;
+    if (!navigator.onLine) return;
+    setFailedMessageIds((prev) => {
+      const next = new Set(prev);
+      next.delete(messageId);
+      return next;
+    });
+    socketRef.current?.send(envelope);
+  }, []);
+
+  /** Scrolled to the top of the thread — pulls one more 12h window further back (see messageCache.ts), retrying a few consecutive empty windows before concluding there's genuinely nothing older. */
+  const loadOlderMessages = useCallback(async () => {
+    if (isLoadingOlder || !hasMoreHistory) return;
+    const bounds = nextWindowBounds(conversationId);
+    if (!bounds) {
+      setHasMoreHistory(false);
+      return;
+    }
+    setIsLoadingOlder(true);
+    try {
+      const older = await messagingApi.fetchHistory(conversationId, bounds.since, bounds.until);
+      emptyWindowCountRef.current = older.length === 0 ? emptyWindowCountRef.current + 1 : 0;
+      prependOlder(conversationId, older, bounds.since, emptyWindowCountRef.current);
+      setMessages(getCached(conversationId) ?? []);
+      if (hasReachedStart(conversationId)) {
+        setHasMoreHistory(false);
+      } else if (older.length === 0) {
+        // Empty window, but not yet at the retry limit — immediately try the next one further back rather than making the user click repeatedly through quiet stretches.
+        setIsLoadingOlder(false);
+        await loadOlderMessages();
+        return;
+      }
+    } catch (e) {
+      console.warn('[useConversation] loadOlderMessages failed', e);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [conversationId, hasMoreHistory, isLoadingOlder]);
+
   return {
     messages,
+    isInitialLoading,
+    isLoadingOlder,
+    hasMoreHistory,
+    loadOlderMessages,
     sendMessage,
+    failedMessageIds,
+    retrySendMessage,
     editMessage,
     deleteMessage,
     pinMessage,

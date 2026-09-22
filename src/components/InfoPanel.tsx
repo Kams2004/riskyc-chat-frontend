@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
+import { Spinner } from './Spinner';
 import { useCall } from '../features/calls/CallContext';
 import { useMediaUrl } from '../features/media/useMediaUrl';
 import { getCommonGroups, type GroupResult } from '../features/groups/api';
@@ -79,7 +80,7 @@ function ContactView({
   }
 
   if (isLoading || !user) {
-    return <p style={{ color: 'var(--text-muted)', padding: 20 }}>Loading…</p>;
+    return <div className="loading-center"><Spinner /></div>;
   }
 
   const name = user.displayName || 'Unnamed user';
@@ -191,7 +192,7 @@ function MediaView({ conversationId }: { conversationId: string }) {
         ))}
       </div>
 
-      {isLoading && <p style={{ color: 'var(--text-muted)' }}>Loading…</p>}
+      {isLoading && <div className="loading-center"><Spinner /></div>}
 
       {!isLoading && tab === 'media' && (
         media.length === 0 ? (

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
 import { IconRail } from '../components/IconRail';
+import { Spinner } from '../components/Spinner';
 import { StatusComposer } from '../components/StatusComposer';
 import { StatusViewer } from '../components/StatusViewer';
 import { useAuth } from '../features/auth/AuthContext';
@@ -109,7 +110,7 @@ export function StatusPage() {
             <span className="conversation-row-time">{myStatuses.length > 0 ? 'Tap to view' : 'Add status update'}</span>
           </div>
 
-          {isLoading && <p style={{ padding: 18, color: 'var(--text-muted)' }}>Loading…</p>}
+          {isLoading && <div className="loading-center"><Spinner /></div>}
 
           {!isLoading && recent.length > 0 && (
             <>

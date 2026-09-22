@@ -7,6 +7,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
 import { IconRail } from '../components/IconRail';
+import { Spinner } from '../components/Spinner';
 import { useAuth } from '../features/auth/AuthContext';
 import { useConversationList, type ConversationListItem } from '../features/messaging/useConversationList';
 import { useInboxSocket } from '../features/messaging/useInboxSocket';
@@ -46,7 +47,7 @@ function formatListTime(iso: string): string {
  * right pane when a thread is selected.
  */
 export function ConversationListPage() {
-  const { userId, accessToken, displayName, avatarObjectKey, signOut } = useAuth();
+  const { userId, accessToken, displayName, avatarObjectKey } = useAuth();
   const { conversations, isLoading, reload } = useConversationList(userId);
   // Keeps the list itself live for messages arriving in any conversation,
   // not just the one currently open (which handles its own live updates via
@@ -134,7 +135,7 @@ export function ConversationListPage() {
         </div>
 
         <div className="sidebar-list">
-          {isLoading && conversations.length === 0 && <p style={{ padding: 18, color: 'var(--text-muted)' }}>Loading…</p>}
+          {isLoading && conversations.length === 0 && <div className="loading-center"><Spinner /></div>}
           {!isLoading && filtered.length === 0 && (
             <p style={{ padding: 18, color: 'var(--text-muted)' }}>
               {conversations.length === 0 ? t('sidebar.noConversations') : t('sidebar.noMatches')}
@@ -167,17 +168,6 @@ export function ConversationListPage() {
               </div>
             );
           })}
-        </div>
-        <div style={{ padding: 12, borderTop: '1px solid var(--hairline)' }}>
-          <button
-            className="link-button secondary"
-            onClick={() => {
-              signOut();
-              navigate('/', { replace: true });
-            }}
-          >
-            Sign out
-          </button>
         </div>
       </aside>
 

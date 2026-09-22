@@ -1,7 +1,9 @@
-import { faMicrophone, faMicrophoneSlash, faPhoneSlash, faVideo, faVideoSlash } from '@fortawesome/free-solid-svg-icons';
-import { useEffect, useRef } from 'react';
+import { faMicrophone, faMicrophoneSlash, faPhoneSlash, faUserPlus, faVideo, faVideoSlash } from '@fortawesome/free-solid-svg-icons';
+import { useEffect, useRef, useState } from 'react';
 
-import { useGroupCall, type GroupCallParticipant } from '../features/calls/GroupCallContext';
+import { useGroupCall, type GroupCallParticipant, type GroupCallQuality } from '../features/calls/GroupCallContext';
+import { getGroup } from '../features/groups/api';
+import { getUser } from '../features/users/api';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 
@@ -53,9 +55,99 @@ function LocalTile({ stream, isVideo, isCameraOff, isMuted }: { stream: MediaStr
   );
 }
 
+const QUALITY_LABEL: Record<'low' | 'medium' | 'high', string> = { low: 'Low', medium: 'Medium', high: 'High' };
+
+/** "Add participant" — lists the group's own members who aren't already on the call (by peerId === userId, see GroupCallContext's own doc comment on that equivalence), lets the host pick several, then fires them all through the same notifyInvite channel the initial call-start invite used. */
+function AddParticipantModal({
+  groupId,
+  userId,
+  participants,
+  onClose,
+  onInvite,
+}: {
+  groupId: string;
+  userId: string | null;
+  participants: GroupCallParticipant[];
+  onClose: () => void;
+  onInvite: (memberIds: string[]) => void;
+}) {
+  const [candidates, setCandidates] = useState<{ userId: string; name: string }[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const inCall = new Set([userId, ...participants.map((p) => p.peerId)]);
+    getGroup(groupId)
+      .then(async (group) => {
+        const missing = group.members.filter((m) => !inCall.has(m.userId));
+        const resolved = await Promise.all(
+          missing.map(async (m) => ({ userId: m.userId, name: (await getUser(m.userId).catch(() => null))?.displayName || 'Unknown' }))
+        );
+        setCandidates(resolved);
+      })
+      .finally(() => setIsLoading(false));
+  }, [groupId, userId, participants]);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginTop: 0 }}>Add participant</h3>
+        {isLoading && <p style={{ color: 'var(--text-muted)' }}>Loading…</p>}
+        {!isLoading && candidates.length === 0 && <p style={{ color: 'var(--text-muted)' }}>Everyone in this group is already on the call.</p>}
+        {candidates.map((c) => (
+          <div key={c.userId} className="conversation-row" style={{ borderBottom: 'none', borderRadius: 10, cursor: 'pointer' }} onClick={() => toggle(c.userId)}>
+            <Avatar label={c.name} size={36} />
+            <div className="conversation-row-title" style={{ flex: 1 }}>{c.name}</div>
+            {selected.has(c.userId) && <span>✓</span>}
+          </div>
+        ))}
+        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+          <button className="link-button secondary" onClick={onClose}>Cancel</button>
+          <button
+            className="link-button"
+            disabled={selected.size === 0}
+            onClick={() => {
+              onInvite([...selected]);
+              onClose();
+            }}
+          >
+            Invite
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function GroupCallOverlay() {
-  const { groupCallState, groupName, callType, localStream, participants, isMuted, isCameraOff, leaveGroupCall, toggleMute, toggleCamera } =
-    useGroupCall();
+  const {
+    groupCallState,
+    groupId,
+    groupName,
+    callType,
+    localStream,
+    participants,
+    isMuted,
+    isCameraOff,
+    leaveGroupCall,
+    toggleMute,
+    toggleCamera,
+    inviteMoreParticipants,
+    qualityMode,
+    effectiveQuality,
+    setQualityMode,
+  } = useGroupCall();
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   if (groupCallState === 'idle') return null;
 
@@ -67,6 +159,27 @@ export function GroupCallOverlay() {
         <div className="call-overlay-title">{groupName ?? 'Group call'}</div>
         <div className="call-overlay-subtitle">
           {groupCallState === 'connecting' ? 'Connecting…' : `${participants.length + 1} in call`}
+        </div>
+        <div className="call-overlay-header-actions">
+          {groupId && (
+            <button className="call-overlay-icon-button" title="Add participant" onClick={() => setAddOpen(true)}>
+              <Icon icon={faUserPlus} />
+            </button>
+          )}
+          <div style={{ position: 'relative' }}>
+            <button type="button" className="call-overlay-quality-button" onClick={() => setQualityMenuOpen((v) => !v)}>
+              {qualityMode === 'auto' ? `Auto (${QUALITY_LABEL[effectiveQuality]})` : QUALITY_LABEL[effectiveQuality]}
+            </button>
+            {qualityMenuOpen && (
+              <div className="bubble-menu" style={{ top: '110%', right: 0 }} onMouseLeave={() => setQualityMenuOpen(false)}>
+                {(['auto', 'low', 'medium', 'high'] as GroupCallQuality[]).map((q) => (
+                  <button key={q} onClick={() => { setQualityMode(q); setQualityMenuOpen(false); }}>
+                    {q === 'auto' ? `Auto (${QUALITY_LABEL[effectiveQuality]})` : QUALITY_LABEL[q as 'low' | 'medium' | 'high']}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -90,6 +203,16 @@ export function GroupCallOverlay() {
           <Icon icon={faPhoneSlash} />
         </button>
       </div>
+
+      {addOpen && groupId && (
+        <AddParticipantModal
+          groupId={groupId}
+          userId={null}
+          participants={participants}
+          onClose={() => setAddOpen(false)}
+          onInvite={inviteMoreParticipants}
+        />
+      )}
     </div>
   );
 }

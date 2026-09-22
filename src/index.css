@@ -465,6 +465,56 @@ h1.step-title {
   font-weight: 600;
 }
 
+.spinner {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+}
+
+.spinner-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 999px;
+  background: var(--brand-500);
+  animation: spinner-fade 1s linear infinite;
+}
+
+@keyframes spinner-fade {
+  0%, 39%, 100% { opacity: 0.15; }
+  40% { opacity: 1; }
+}
+
+.tab-lock-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--tint1);
+  overflow: hidden;
+  margin-top: 16px;
+}
+
+.tab-lock-progress-fill {
+  height: 100%;
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  border-radius: 999px;
+  transition: width 0.15s ease-out;
+}
+
+.thread-load-older {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.loading-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
 .icon-button {
   width: 36px;
   height: 36px;
@@ -526,6 +576,7 @@ h1.step-title {
 .thread-body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -565,10 +616,13 @@ h1.step-title {
 
 .bubble {
   max-width: 60%;
+  min-width: 0;
   padding: 10px 14px;
   border-radius: 16px;
   position: relative;
   cursor: default;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .bubble.mine {
@@ -983,6 +1037,16 @@ h1.step-title {
   padding: 16px 20px;
   text-align: center;
   flex-shrink: 0;
+  position: relative;
+}
+
+.call-overlay-header-actions {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .call-overlay-title {
@@ -1171,6 +1235,32 @@ h1.step-title {
   padding: 16px 0 32px;
 }
 
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 150;
+  background: var(--error);
+  color: #fff;
+  text-align: center;
+  font-size: 13px;
+  padding: 6px 12px;
+}
+
+.retry-send-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  color: var(--error);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
 .incoming-call-banner {
   position: fixed;
   top: 16px;
@@ -1205,6 +1295,19 @@ h1.step-title {
   align-items: center;
   justify-content: center;
   z-index: 50;
+}
+
+.memory-pressure-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
 }
 
 .modal-card {
@@ -1457,7 +1560,8 @@ h1.step-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 220px;
+  width: 190px;
+  max-width: 100%;
   padding: 2px 0;
 }
 
@@ -1660,8 +1764,9 @@ h1.step-title {
   background: var(--surface);
   border-radius: 16px;
   overflow: hidden;
-  width: 380px;
-  max-height: 80vh;
+  width: min(480px, 92vw);
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .status-composer-pick {
@@ -1676,7 +1781,7 @@ h1.step-title {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 480px;
+  min-height: min(600px, 80vh);
   padding: 20px;
 }
 
@@ -1731,7 +1836,9 @@ h1.step-title {
 
 .status-media-preview {
   width: 100%;
-  max-height: 380px;
+  flex: 1;
+  min-height: 260px;
+  max-height: min(560px, 70vh);
   object-fit: contain;
   border-radius: 8px;
   margin-top: 40px;
@@ -1739,9 +1846,11 @@ h1.step-title {
 }
 
 .status-video-trim-wrap {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
 }
 
 .status-video-preview-frame {
@@ -1751,11 +1860,14 @@ h1.step-title {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 1;
+  min-height: 220px;
 }
 
 .status-video-preview {
   width: 100%;
-  max-height: 340px;
+  height: 100%;
+  max-height: min(500px, 65vh);
   object-fit: contain;
   border-radius: 8px;
   background: #000;
@@ -1999,7 +2111,18 @@ h1.step-title {
     justify-content: space-around;
     padding: 8px 12px;
     border-right: none;
-    border-bottom: 1px solid var(--hairline);
+    border-bottom: none;
+    border-top: 1px solid var(--hairline);
+    /* Pinned to the bottom of the column stack (a bottom tab bar, matching
+       the mobile app's own tab bar) rather than sitting above the chat
+       list — order alone moves it there without touching DOM/JSX order,
+       which desktop still relies on for the row layout. */
+    order: 1;
+  }
+  .sidebar,
+  .main-panel,
+  .info-panel {
+    order: 0;
   }
   .icon-rail-spacer {
     display: none;
@@ -2059,6 +2182,21 @@ h1.step-title {
     width: 50px;
     height: 50px;
     font-size: 18px;
+  }
+  /* Status composer takes over the full screen on a phone-width viewport,
+     matching the mobile app's own full-screen status composer — the fixed
+     480px desktop card would otherwise letterbox the preview even smaller
+     than the desktop "too small" complaint this is fixing. */
+  .status-composer {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    border-radius: 0;
+  }
+  .status-text-editor,
+  .status-media-editor {
+    min-height: 100%;
+    height: 100%;
   }
 }
 

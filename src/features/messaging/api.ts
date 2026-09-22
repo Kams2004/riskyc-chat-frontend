@@ -48,8 +48,18 @@ export type MessageEnvelope = {
   replyToStatusOwnerId?: string | null;
 };
 
-export function fetchHistory(conversationId: string): Promise<MessageEnvelope[]> {
-  return apiFetch(`${config.messagingServiceUrl}/api/messages/${conversationId}`);
+/**
+ * since/until (both optional, ISO instants) bound the fetch to a time
+ * window — used for the web client's 24h-initial / 12h-increment message
+ * paging (see useConversation.ts). Omitting both keeps the old unbounded
+ * full-history behavior.
+ */
+export function fetchHistory(conversationId: string, since?: string, until?: string): Promise<MessageEnvelope[]> {
+  const params = new URLSearchParams();
+  if (since) params.set('since', since);
+  if (until) params.set('until', until);
+  const query = params.toString();
+  return apiFetch(`${config.messagingServiceUrl}/api/messages/${conversationId}${query ? `?${query}` : ''}`);
 }
 
 export type MediaSummaryItem = { messageId: string; mediaType: string; mediaObjectKey: string; mediaFileName: string | null; sentAt: string | null };

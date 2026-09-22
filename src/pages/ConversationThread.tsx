@@ -10,6 +10,7 @@ import {
   faPhone,
   faStar as faStarSolid,
   faThumbtack,
+  faTriangleExclamation,
   faVideo,
   faXmark,
 } from '@fortawesome/free-solid-svg-icons';
@@ -25,6 +26,7 @@ import { firstUrlIn, LinkPreviewCard } from '../components/LinkPreviewCard';
 import { MediaViewer } from '../components/MediaViewer';
 import { MessageAttachmentGrid } from '../components/MessageAttachmentGrid';
 import { InfoPanel, type InfoPanelView } from '../components/InfoPanel';
+import { Spinner } from '../components/Spinner';
 import { MessageInfoModal } from '../components/MessageInfoModal';
 import { MessageTicks } from '../components/MessageTicks';
 import { ReactionPicker, ReactionPills } from '../components/ReactionBar';
@@ -94,7 +96,13 @@ export function ConversationThreadPage({
   const { startCall } = useCall();
   const {
     messages,
+    isInitialLoading,
+    isLoadingOlder,
+    hasMoreHistory,
+    loadOlderMessages,
     sendMessage,
+    failedMessageIds,
+    retrySendMessage,
     editMessage,
     deleteMessage,
     pinMessage,
@@ -140,6 +148,7 @@ export function ConversationThreadPage({
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   const [onlyAdminsCanMessage, setOnlyAdminsCanMessage] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const didScrollRef = useRef(false);
 
@@ -157,9 +166,43 @@ export function ConversationThreadPage({
     });
   }
 
+  // Auto-scrolls to the bottom for a new/live message — but NOT right after
+  // "load more" prepends older ones above, which would otherwise yank the
+  // view down to the bottom right as the user is trying to read further
+  // back. handleLoadOlder below captures scroll height beforehand and
+  // restores the same visual position instead, via prevScrollHeightRef.
   useEffect(() => {
+    if (prevScrollHeightRef.current !== null) return;
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
   }, [messages.length]);
+
+  useEffect(() => {
+    if (prevScrollHeightRef.current === null) return;
+    const el = bodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight - prevScrollHeightRef.current;
+    prevScrollHeightRef.current = null;
+  }, [messages]);
+
+  async function handleLoadOlder() {
+    prevScrollHeightRef.current = bodyRef.current?.scrollHeight ?? null;
+    await loadOlderMessages();
+  }
+
+  // Closes the reaction picker/kebab menu on a click anywhere outside them
+  // — .bubble-menu previously only closed on mouseleave, which never fires
+  // for the reaction picker specifically (it isn't wrapped in that class),
+  // so tapping empty space near it did nothing.
+  useEffect(() => {
+    if (!reactionPickerFor && !openMenuFor) return;
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (target.closest('.reaction-picker') || target.closest('.bubble-kebab') || target.closest('.bubble-menu')) return;
+      setReactionPickerFor(null);
+      setOpenMenuFor(null);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [reactionPickerFor, openMenuFor]);
 
   // Closes the info panel on a conversation switch — its contents (contact
   // id, media, search results) are conversation-specific, and keeping a
@@ -605,6 +648,20 @@ export function ConversationThreadPage({
       )}
 
       <div className={`thread-body wallpaper-${wallpaper}`} ref={bodyRef}>
+        {isInitialLoading && (
+          <div className="loading-center">
+            <Spinner />
+          </div>
+        )}
+        {!isInitialLoading && hasMoreHistory && messages.length > 0 && (
+          <div className="thread-load-older">
+            {isLoadingOlder ? <Spinner size={20} /> : (
+              <button type="button" className="link-button secondary" onClick={handleLoadOlder}>
+                Click to load earlier messages
+              </button>
+            )}
+          </div>
+        )}
         {messages.map((m) => {
           const isMine = m.senderId === userId;
 
@@ -700,6 +757,11 @@ export function ConversationThreadPage({
                   {formatTime(m.sentAt)}
                   {isMine && !isGroup && <MessageTicks status={m.status} />}
                 </div>
+                {failedMessageIds.has(m.messageId) && (
+                  <button type="button" className="retry-send-button" onClick={() => retrySendMessage(m.messageId)}>
+                    <Icon icon={faTriangleExclamation} /> Not sent · Tap to try again
+                  </button>
+                )}
                 <ReactionPills reactions={messageReactions} currentUserId={userId} onToggle={(emoji) => handleReact(m.messageId, emoji)} />
 
                 <button className="bubble-kebab" onClick={() => setOpenMenuFor(openMenuFor === m.messageId ? null : m.messageId)}>

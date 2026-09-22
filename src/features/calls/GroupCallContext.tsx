@@ -11,6 +11,33 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: config.turnServerUrl, username: config.turnUsername, credential: config.turnCredential },
 ];
 
+/** Same shape/levels as 1:1 calling's own quality control (see features/calls/CallContext.tsx) — applied to the video Producer's underlying RTCRtpSender here instead of a plain RTCPeerConnection's, since group calls go through mediasoup's SFU. */
+export type GroupCallQuality = 'auto' | 'low' | 'medium' | 'high';
+type ResolvedGroupQuality = 'low' | 'medium' | 'high';
+const GROUP_QUALITY_LEVELS: ResolvedGroupQuality[] = ['low', 'medium', 'high'];
+const GROUP_QUALITY_PRESETS: Record<ResolvedGroupQuality, { videoBitrate: number; audioBitrate: number }> = {
+  low: { videoBitrate: 150_000, audioBitrate: 20_000 },
+  medium: { videoBitrate: 400_000, audioBitrate: 32_000 },
+  high: { videoBitrate: 1_200_000, audioBitrate: 48_000 },
+};
+
+async function applyGroupQualityLevel(producers: Producer[], level: ResolvedGroupQuality) {
+  const preset = GROUP_QUALITY_PRESETS[level];
+  for (const producer of producers) {
+    const sender = producer.rtpSender;
+    if (!sender) continue;
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) params.encodings = [{ active: true }];
+      const maxBitrate = producer.kind === 'video' ? preset.videoBitrate : preset.audioBitrate;
+      for (const encoding of params.encodings) encoding.maxBitrate = maxBitrate;
+      await sender.setParameters(params);
+    } catch (e) {
+      console.warn('[GroupCallContext] failed to apply quality level', e);
+    }
+  }
+}
+
 export type GroupCallParticipant = {
   peerId: string;
   displayName: string;
@@ -33,9 +60,14 @@ type GroupCallContextValue = {
   startGroupCall: (groupId: string, groupName: string, memberIds: string[], callType: GroupCallType) => Promise<void>;
   /** Responding to an invite or tapping into an already-ongoing call — joins without re-inviting anyone. */
   joinGroupCall: (groupId: string, groupName: string, callType: GroupCallType) => Promise<void>;
+  /** The in-call "Add participant" action — re-uses the same notifyInvite the initial call-start invite goes through, just fired again mid-call for whoever's newly picked. */
+  inviteMoreParticipants: (memberIds: string[]) => void;
   leaveGroupCall: () => void;
   toggleMute: () => void;
   toggleCamera: () => void;
+  qualityMode: GroupCallQuality;
+  effectiveQuality: ResolvedGroupQuality;
+  setQualityMode: (mode: GroupCallQuality) => void;
 };
 
 const GroupCallContext = createContext<GroupCallContextValue | null>(null);
@@ -66,6 +98,27 @@ export function GroupCallProvider({ children }: { children: React.ReactNode }) {
   const [participants, setParticipants] = useState<Map<string, GroupCallParticipant>>(new Map());
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
+  const [qualityMode, setQualityModeState] = useState<GroupCallQuality>('auto');
+  const qualityModeRef = useRef<GroupCallQuality>('auto');
+  const [effectiveQuality, setEffectiveQualityState] = useState<ResolvedGroupQuality>('medium');
+  const effectiveQualityRef = useRef<ResolvedGroupQuality>('medium');
+  const prevQualityStatsRef = useRef<{ lost: number; sent: number } | null>(null);
+  const consecutiveGoodPollsRef = useRef(0);
+
+  const setEffectiveQuality = useCallback((level: ResolvedGroupQuality) => {
+    effectiveQualityRef.current = level;
+    setEffectiveQualityState(level);
+    void applyGroupQualityLevel(producersRef.current, level);
+  }, []);
+
+  const setQualityMode = useCallback(
+    (mode: GroupCallQuality) => {
+      qualityModeRef.current = mode;
+      setQualityModeState(mode);
+      if (mode !== 'auto') setEffectiveQuality(mode);
+    },
+    [setEffectiveQuality]
+  );
 
   const upsertParticipant = useCallback((peerId: string, patch: Partial<GroupCallParticipant>) => {
     setParticipants((prev) => {
@@ -99,6 +152,12 @@ export function GroupCallProvider({ children }: { children: React.ReactNode }) {
     setParticipants(new Map());
     setIsMuted(false);
     setIsCameraOff(false);
+    qualityModeRef.current = 'auto';
+    setQualityModeState('auto');
+    effectiveQualityRef.current = 'medium';
+    setEffectiveQualityState('medium');
+    prevQualityStatsRef.current = null;
+    consecutiveGoodPollsRef.current = 0;
   }, []);
 
   const consumeProducer = useCallback(
@@ -223,6 +282,8 @@ export function GroupCallProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      await applyGroupQualityLevel(producersRef.current, effectiveQualityRef.current);
+
       const existing = await socket.request('getExistingProducers');
       const existingProducers = (existing.producers as Array<{ peerId: string; displayName: string; producerId: string; kind: 'audio' | 'video' }>) ?? [];
       for (const p of existingProducers) {
@@ -252,6 +313,14 @@ export function GroupCallProvider({ children }: { children: React.ReactNode }) {
     [doJoin]
   );
 
+  const inviteMoreParticipants = useCallback((memberIds: string[]) => {
+    const socket = socketRef.current;
+    if (!socket || memberIds.length === 0 || !groupId) return;
+    socket
+      .request('notifyInvite', { memberIds, callerName: displayName ?? 'Someone', callType: callType ?? 'AUDIO' })
+      .catch((e) => console.warn('[GroupCallContext] inviteMoreParticipants failed', e));
+  }, [callType, displayName, groupId]);
+
   const leaveGroupCall = useCallback(() => {
     resetState();
   }, [resetState]);
@@ -279,6 +348,56 @@ export function GroupCallProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Same auto-adaptive approach as 1:1 calling (features/calls/CallContext.tsx)
+  // — per-interval packet-loss delta across every outgoing producer, fast
+  // downgrade / slow upgrade, no-ops once the user picks a fixed level.
+  useEffect(() => {
+    if (groupCallState !== 'in-call') return;
+    prevQualityStatsRef.current = null;
+    consecutiveGoodPollsRef.current = 0;
+
+    const interval = setInterval(async () => {
+      if (qualityModeRef.current !== 'auto') return;
+      let lost = 0;
+      let sent = 0;
+      try {
+        for (const producer of producersRef.current) {
+          const stats = await producer.getStats();
+          stats.forEach((report: any) => {
+            if (report.type === 'remote-inbound-rtp' && typeof report.packetsLost === 'number') lost += report.packetsLost;
+            if (report.type === 'outbound-rtp' && typeof report.packetsSent === 'number') sent += report.packetsSent;
+          });
+        }
+        const prev = prevQualityStatsRef.current;
+        prevQualityStatsRef.current = { lost, sent };
+        if (!prev) return;
+
+        const deltaSent = sent - prev.sent;
+        const deltaLost = lost - prev.lost;
+        if (deltaSent <= 0) return;
+        const lossFraction = deltaLost / (deltaSent + deltaLost);
+
+        const currentIndex = GROUP_QUALITY_LEVELS.indexOf(effectiveQualityRef.current);
+        if (lossFraction > 0.08 && currentIndex > 0) {
+          consecutiveGoodPollsRef.current = 0;
+          setEffectiveQuality(GROUP_QUALITY_LEVELS[currentIndex - 1]);
+        } else if (lossFraction < 0.02) {
+          consecutiveGoodPollsRef.current += 1;
+          if (consecutiveGoodPollsRef.current >= 3 && currentIndex < GROUP_QUALITY_LEVELS.length - 1) {
+            consecutiveGoodPollsRef.current = 0;
+            setEffectiveQuality(GROUP_QUALITY_LEVELS[currentIndex + 1]);
+          }
+        } else {
+          consecutiveGoodPollsRef.current = 0;
+        }
+      } catch (e) {
+        console.warn('[GroupCallContext] quality-adapt stats poll failed', e);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [groupCallState, setEffectiveQuality]);
+
   const value: GroupCallContextValue = {
     groupCallState,
     groupId,
@@ -290,9 +409,13 @@ export function GroupCallProvider({ children }: { children: React.ReactNode }) {
     isCameraOff,
     startGroupCall,
     joinGroupCall,
+    inviteMoreParticipants,
     leaveGroupCall,
     toggleMute,
     toggleCamera,
+    qualityMode,
+    effectiveQuality,
+    setQualityMode,
   };
 
   return <GroupCallContext.Provider value={value}>{children}</GroupCallContext.Provider>;

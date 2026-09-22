@@ -1,4 +1,5 @@
 import { useMediaUrl } from '../features/media/useMediaUrl';
+import { useInView } from '../lib/useInView';
 import type { AttachmentItem } from '../features/messaging/api';
 
 // A percentage-of-container width rather than a fixed pixel value — the
@@ -9,9 +10,15 @@ import type { AttachmentItem } from '../features/messaging/api';
 const GAP_PERCENT = 1.5;
 
 function Tile({ item, widthPercent, onClick, overlay }: { item: AttachmentItem; widthPercent: number; onClick: () => void; overlay?: React.ReactNode }) {
-  const url = useMediaUrl(item.mediaObjectKey);
+  // Off-screen tiles in a long scrolled thread shouldn't each mint a
+  // presigned download URL and pull their image the moment the thread
+  // mounts — resolution is gated behind actually entering the viewport
+  // (see useInView; a 200px rootMargin pre-warms just before it's visible).
+  const { ref, inView } = useInView<HTMLDivElement>();
+  const url = useMediaUrl(inView ? item.mediaObjectKey : null);
   return (
     <div
+      ref={ref}
       onClick={onClick}
       style={{ width: `${widthPercent}%`, aspectRatio: '1', position: 'relative', cursor: 'pointer', background: 'rgba(0,0,0,0.08)' }}
     >

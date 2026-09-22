@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { Spinner } from './Spinner';
 import { fetchMessageReceipts, type ReceiptRow } from '../features/messaging/api';
 
 const STATUS_LABEL: Record<ReceiptRow['status'], string> = {
@@ -44,7 +45,7 @@ export function MessageInfoModal({
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0 }}>Message info</h3>
-        {rows === null && <p style={{ color: 'var(--text-muted)' }}>Loading…</p>}
+        {rows === null && <div className="loading-center" style={{ padding: 20 }}><Spinner /></div>}
         {rows !== null && rows.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No delivery info yet.</p>}
         {[
           { title: 'Read', items: readRows },

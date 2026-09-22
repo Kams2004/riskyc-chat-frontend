@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Icon } from '../components/Icon';
+import { Spinner } from '../components/Spinner';
 import { useAuth } from '../features/auth/AuthContext';
 import { listSessions, revokeSession, type SessionResult } from '../features/sessions/api';
 
@@ -56,7 +57,7 @@ export function DevicesPage() {
       </button>
       <h1>Logged-in devices</h1>
 
-      {isLoading && sessions.length === 0 && <p style={{ color: 'var(--text-muted)' }}>Loading…</p>}
+      {isLoading && sessions.length === 0 && <div className="loading-center"><Spinner /></div>}
       {!isLoading && sessions.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No active sessions.</p>}
 
       {sessions.map((item) => (

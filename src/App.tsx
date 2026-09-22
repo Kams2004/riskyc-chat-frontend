@@ -6,6 +6,8 @@ import { GroupCallProvider } from './features/calls/GroupCallContext';
 import { CallOverlay } from './components/CallOverlay';
 import { GroupCallOverlay } from './components/GroupCallOverlay';
 import { IncomingGroupCallBanner } from './components/IncomingGroupCallBanner';
+import { MemoryPressureGate } from './components/MemoryPressureGate';
+import { OfflineBanner } from './components/OfflineBanner';
 import { TabLockGate } from './components/TabLockGate';
 import { ThemeProvider } from './lib/ThemeContext';
 import { AccountPage } from './pages/Account';
@@ -126,6 +128,8 @@ export function App() {
             <IncomingGroupCallBanner />
             <GroupCallOverlay />
             <CallOverlay />
+            <OfflineBanner />
+            <MemoryPressureGate />
           </GroupCallProvider>
         </CallProvider>
       </AuthProvider>

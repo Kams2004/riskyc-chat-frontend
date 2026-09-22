@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { listConversationSummaries } from '../features/messaging/api';
 import { CHANNEL_NAME, isTabLockSupported, newTabId, type TabLockMessage } from '../lib/tabLock';
 
-type Status = 'active' | 'choosing' | 'locked';
+type Status = 'active' | 'choosing' | 'locked' | 'loading';
 
 const CLAIM_RESPONSE_WINDOW_MS = 350;
 
@@ -15,9 +16,40 @@ const CLAIM_RESPONSE_WINDOW_MS = 350;
  */
 export function TabLockGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('active');
+  const [loadProgress, setLoadProgress] = useState(0);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const tabIdRef = useRef(newTabId());
   const heardResponseRef = useRef(false);
+
+  // 'loading' step between confirming "use this tab" and actually opening
+  // the app — pre-fetches the conversation list once (so it's warm in
+  // useConversationList's own cache-free re-fetch a moment later) with a
+  // visible progress bar, rather than the previous instant swap straight
+  // into a UI whose data hadn't loaded yet.
+  useEffect(() => {
+    if (status !== 'loading') return;
+    let cancelled = false;
+    setLoadProgress(8);
+    // Climbs smoothly toward (not past) 90% while genuinely still waiting
+    // on the request — never claims 100% until the fetch actually resolves.
+    const ticker = setInterval(() => {
+      setLoadProgress((p) => (p < 90 ? p + (90 - p) * 0.15 : p));
+    }, 120);
+    listConversationSummaries()
+      .catch(() => {})
+      .finally(() => {
+        if (cancelled) return;
+        clearInterval(ticker);
+        setLoadProgress(100);
+        setTimeout(() => {
+          if (!cancelled) setStatus('active');
+        }, 200);
+      });
+    return () => {
+      cancelled = true;
+      clearInterval(ticker);
+    };
+  }, [status]);
 
   useEffect(() => {
     if (!isTabLockSupported()) return;
@@ -55,7 +87,7 @@ export function TabLockGate({ children }: { children: React.ReactNode }) {
 
   function continueHere() {
     channelRef.current?.postMessage({ type: 'takeover', from: tabIdRef.current } satisfies TabLockMessage);
-    setStatus('active');
+    setStatus('loading');
   }
 
   function keepOtherTab() {
@@ -64,7 +96,7 @@ export function TabLockGate({ children }: { children: React.ReactNode }) {
 
   function useThisTabInstead() {
     channelRef.current?.postMessage({ type: 'takeover', from: tabIdRef.current } satisfies TabLockMessage);
-    setStatus('active');
+    setStatus('loading');
   }
 
   if (status === 'choosing') {
@@ -81,6 +113,19 @@ export function TabLockGate({ children }: { children: React.ReactNode }) {
           <button className="link-button secondary" onClick={keepOtherTab}>
             Keep using the other tab
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'loading') {
+    return (
+      <div style={overlayStyle}>
+        <div style={cardStyle}>
+          <h2 style={{ marginTop: 0 }}>Loading your conversations…</h2>
+          <div className="tab-lock-progress-track">
+            <div className="tab-lock-progress-fill" style={{ width: `${loadProgress}%` }} />
+          </div>
         </div>
       </div>
     );

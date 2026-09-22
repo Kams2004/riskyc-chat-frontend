@@ -6,6 +6,7 @@ import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
 import { useAuth } from '../features/auth/AuthContext';
 import { setAppLanguage, SUPPORTED_LANGUAGES, type SupportedLanguage } from '../i18n';
+import { useTheme, type ThemePreference } from '../lib/ThemeContext';
 import { setWallpaperVariant, useWallpaperVariant, type WallpaperVariant } from '../lib/wallpaper';
 
 const WALLPAPER_OPTIONS: { value: WallpaperVariant; label: string }[] = [
@@ -14,13 +15,23 @@ const WALLPAPER_OPTIONS: { value: WallpaperVariant; label: string }[] = [
   { value: 'plain', label: 'Plain' },
 ];
 
+const THEME_OPTIONS: ThemePreference[] = ['system', 'light', 'dark'];
+
 export function SettingsPage() {
-  const { displayName, avatarObjectKey } = useAuth();
+  const { displayName, avatarObjectKey, signOut } = useAuth();
   const navigate = useNavigate();
   const wallpaper = useWallpaperVariant();
+  const { preference, setPreference } = useTheme();
   const { t, i18n } = useTranslation(['settings', 'web']);
   const currentLanguage = (i18n.language?.split('-')[0] as SupportedLanguage) || 'en';
   const languageLabels: Record<SupportedLanguage, string> = { en: t('language.english'), fr: t('language.french') };
+  const themeLabels: Record<ThemePreference, string> = { system: t('index.themeSystem'), light: t('index.themeLight'), dark: t('index.themeDark') };
+
+  function handleSignOut() {
+    if (!window.confirm(t('index.signOutConfirmBody'))) return;
+    signOut();
+    navigate('/', { replace: true });
+  }
 
   return (
     <div className="settings-page">
@@ -46,6 +57,22 @@ export function SettingsPage() {
       <div className="settings-row" onClick={() => navigate('/settings/devices')} style={{ cursor: 'pointer' }}>
         <p className="settings-row-label">{t('index.loggedInDevices')}</p>
         <p className="settings-row-value">See where you're signed in, sign out remotely</p>
+      </div>
+
+      <div className="settings-row">
+        <p className="settings-row-label">{t('index.appearance')}</p>
+        <div className="toggle-row" style={{ marginTop: 8 }}>
+          {THEME_OPTIONS.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              className={`toggle-tab ${preference === opt ? 'active' : ''}`}
+              onClick={() => setPreference(opt)}
+            >
+              {themeLabels[opt]}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="settings-row">
@@ -84,6 +111,10 @@ export function SettingsPage() {
       <div className="settings-row" onClick={() => navigate('/privacy')} style={{ cursor: 'pointer' }}>
         <p className="settings-row-label">Privacy &amp; Terms</p>
         <p className="settings-row-value">Read our policies</p>
+      </div>
+
+      <div className="settings-row" onClick={handleSignOut} style={{ cursor: 'pointer' }}>
+        <p className="settings-row-value" style={{ color: 'var(--error)', fontWeight: 600 }}>{t('index.signOut')}</p>
       </div>
     </div>
   );
