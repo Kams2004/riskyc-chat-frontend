@@ -26,6 +26,8 @@ export type MessageEnvelope = {
   mediaDurationMs?: number | null;
   /** Comma-separated normalized amplitude samples (0-100 ints) for an AUDIO message, captured live during recording on mobile — null for a web-recorded voice message (web derives its waveform by decoding the audio client-side instead, see VoiceMessagePlayer) or one sent before this field existed. */
   waveform?: string | null;
+  /** Opaque drawing/text-overlay JSON for an IMAGE message — see lib/overlay.ts. Null for every message without one. */
+  overlayJson?: string | null;
   edited?: boolean;
   deleted?: boolean;
   groupId?: string | null;

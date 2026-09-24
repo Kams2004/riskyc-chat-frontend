@@ -16,7 +16,14 @@ import {
 } from './messageCache';
 import { ChatSocket } from './ws';
 
-export type OutgoingMedia = { type: MediaType; objectKey: string; fileName?: string | null; durationMs?: number | null };
+export type OutgoingMedia = {
+  type: MediaType;
+  objectKey: string;
+  fileName?: string | null;
+  durationMs?: number | null;
+  /** IMAGE only — drawing/text overlay created in ImageEditor. See lib/overlay.ts. */
+  overlayJson?: string | null;
+};
 
 export type ReplyToDraft = {
   messageId: string;
@@ -275,6 +282,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
         mediaObjectKey: media?.objectKey,
         mediaFileName: media?.fileName,
         mediaDurationMs: media?.durationMs,
+        overlayJson: media?.overlayJson,
         forwarded,
         attachments: attachmentDtos,
         replyToMessageId: replyTo?.messageId ?? null,

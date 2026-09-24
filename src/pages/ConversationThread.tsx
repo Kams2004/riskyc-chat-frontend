@@ -28,6 +28,7 @@ import { GalleryCaptionComposer, type PendingGalleryFile } from '../components/G
 import { MediaCaptionComposer, type PendingWebMedia } from '../components/MediaCaptionComposer';
 import { MediaViewer } from '../components/MediaViewer';
 import { MessageAttachmentGrid } from '../components/MessageAttachmentGrid';
+import { OverlayView } from '../components/OverlayView';
 import { InfoPanel, type InfoPanelView } from '../components/InfoPanel';
 import { Spinner } from '../components/Spinner';
 import { MessageInfoModal } from '../components/MessageInfoModal';
@@ -46,6 +47,7 @@ import { searchInConversation, type AttachmentItem, type MessageEnvelope, type S
 import { useConversation, type ReplyToDraft } from '../features/messaging/useConversation';
 import { useConversationList } from '../features/messaging/useConversationList';
 import { uploadMedia } from '../features/media/api';
+import { parseOverlay } from '../lib/overlay';
 import { blockUser, getUser, reportUser } from '../features/users/api';
 import { getGroup } from '../features/groups/api';
 import { isStarred, star, unstar } from '../lib/starredMessages';
@@ -527,14 +529,14 @@ export function ConversationThreadPage({
     }
   }
 
-  async function handleSendPendingMedia(caption: string): Promise<boolean> {
+  async function handleSendPendingMedia(caption: string, file: File, overlayJson: string | null): Promise<boolean> {
     if (!pendingWebMedia) return false;
     const media = pendingWebMedia;
     const reply = replyDraft ?? undefined;
     try {
-      const objectKey = await uploadMedia(media.file);
+      const objectKey = await uploadMedia(file);
       if (media.kind === 'image') {
-        sendMessage(caption, { type: 'IMAGE', objectKey }, false, undefined, reply);
+        sendMessage(caption, { type: 'IMAGE', objectKey, overlayJson }, false, undefined, reply);
       } else if (media.kind === 'video') {
         sendMessage(caption, { type: 'VIDEO', objectKey }, false, undefined, reply);
       } else {
@@ -821,7 +823,7 @@ export function ConversationThreadPage({
                   </div>
                 )}
                 {!m.attachments?.length && m.mediaType === 'IMAGE' && m.mediaObjectKey && (
-                  <div style={{ marginBottom: m.ciphertext ? 6 : 0 }}>
+                  <div style={{ marginBottom: m.ciphertext ? 6 : 0, position: 'relative', width: 'min(260px, 100%)' }}>
                     <MessageAttachmentGrid
                       items={[{ position: 0, mediaType: 'IMAGE', mediaObjectKey: m.mediaObjectKey, mediaFileName: m.mediaFileName ?? null, mediaDurationMs: null }]}
                       onOpen={(index) =>
@@ -831,6 +833,7 @@ export function ConversationThreadPage({
                         })
                       }
                     />
+                    {m.overlayJson && <OverlayView overlay={parseOverlay(m.overlayJson)!} />}
                   </div>
                 )}
                 {m.mediaType === 'AUDIO' && m.mediaObjectKey && (
