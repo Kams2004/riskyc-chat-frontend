@@ -24,6 +24,7 @@ import { CallLogRow } from '../components/CallLogRow';
 import { FileAttachmentRow } from '../components/FileAttachmentRow';
 import { Icon } from '../components/Icon';
 import { firstUrlIn, LinkPreviewCard } from '../components/LinkPreviewCard';
+import { MediaCaptionComposer, type PendingWebMedia } from '../components/MediaCaptionComposer';
 import { MediaViewer } from '../components/MediaViewer';
 import { MessageAttachmentGrid } from '../components/MessageAttachmentGrid';
 import { InfoPanel, type InfoPanelView } from '../components/InfoPanel';
@@ -135,6 +136,7 @@ export function ConversationThreadPage({
   const [starredIds, setStarredIds] = useState<Set<string>>(() => new Set());
   const [forwardPickerFor, setForwardPickerFor] = useState<MessageEnvelope | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingWebMedia, setPendingWebMedia] = useState<PendingWebMedia | null>(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [viewer, setViewer] = useState<{ items: AttachmentItem[]; index: number } | null>(null);
@@ -439,10 +441,28 @@ export function ConversationThreadPage({
     e.target.value = ''; // allow picking the same file again later
     if (files.length === 0) return;
 
+    // A single picked file (image, video, or document) gets a WhatsApp-style
+    // preview-with-caption step before anything uploads — see
+    // MediaCaptionComposer and handleSendPendingMedia below. Multiple files
+    // at once skip straight to the existing immediate-send gallery/batch
+    // path, same as before this change (adding a multi-item caption/preview
+    // flow is a separate, bigger feature this doesn't attempt).
+    if (files.length === 1) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        setPendingWebMedia({ kind: 'image', file });
+      } else if (file.type.startsWith('video/')) {
+        setPendingWebMedia({ kind: 'video', file });
+      } else {
+        setPendingWebMedia({ kind: 'file', file, name: file.name, size: file.size });
+      }
+      return;
+    }
+
     // Documents never join a photo/video gallery (attachments are IMAGE/VIDEO
     // only, same as mobile) — each goes out as its own FILE message; any
     // image/video files picked alongside them still go through the normal
-    // single-or-gallery path below.
+    // gallery path below.
     const mediaFiles = files.filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
     const documentFiles = files.filter((f) => !f.type.startsWith('image/') && !f.type.startsWith('video/'));
 
@@ -474,6 +494,32 @@ export function ConversationThreadPage({
       window.alert('Could not send — please check your connection and try again.');
     } finally {
       setIsUploading(false);
+    }
+  }
+
+  async function handleSendPendingMedia(caption: string): Promise<boolean> {
+    if (!pendingWebMedia) return false;
+    const media = pendingWebMedia;
+    const reply = replyDraft ?? undefined;
+    try {
+      const objectKey = await uploadMedia(media.file);
+      if (media.kind === 'image') {
+        sendMessage(caption, { type: 'IMAGE', objectKey }, false, undefined, reply);
+      } else if (media.kind === 'video') {
+        sendMessage(caption, { type: 'VIDEO', objectKey }, false, undefined, reply);
+      } else {
+        sendMessage(caption, { type: 'FILE', objectKey, fileName: media.name }, false, undefined, reply);
+      }
+      // Only clear the preview once the upload+send actually succeeded —
+      // clearing immediately on tap left the screen blank while a slow or
+      // failed upload ran with no visible feedback.
+      setPendingWebMedia(null);
+      setReplyDraft(null);
+      onMessageSent?.();
+      return true;
+    } catch {
+      window.alert('Could not send — please check your connection and try again.');
+      return false;
     }
   }
 
@@ -934,6 +980,8 @@ export function ConversationThreadPage({
       )}
 
       {viewer && <MediaViewer items={viewer.items} initialIndex={viewer.index} onClose={() => setViewer(null)} />}
+
+      <MediaCaptionComposer media={pendingWebMedia} onCancel={() => setPendingWebMedia(null)} onSend={handleSendPendingMedia} />
 
       {forwardPickerFor && (
         <ForwardPickerModal
