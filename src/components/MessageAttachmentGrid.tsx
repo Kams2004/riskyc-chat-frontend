@@ -1,6 +1,11 @@
-import { useMediaUrl } from '../features/media/useMediaUrl';
+import { faRotateRight } from '@fortawesome/free-solid-svg-icons';
+import { useEffect, useState } from 'react';
+
+import { useMediaUrlWithStatus } from '../features/media/useMediaUrl';
 import { useInView } from '../lib/useInView';
 import type { AttachmentItem } from '../features/messaging/api';
+import { Icon } from './Icon';
+import { Spinner } from './Spinner';
 
 // A percentage-of-container width rather than a fixed pixel value — the
 // container itself is capped at `min(260px, 100%)` (see the wrapping div
@@ -15,17 +20,72 @@ function Tile({ item, widthPercent, onClick, overlay }: { item: AttachmentItem; 
   // mounts — resolution is gated behind actually entering the viewport
   // (see useInView; a 200px rootMargin pre-warms just before it's visible).
   const { ref, inView } = useInView<HTMLDivElement>();
-  const url = useMediaUrl(inView ? item.mediaObjectKey : null);
+  const { url, status, retry } = useMediaUrlWithStatus(inView ? item.mediaObjectKey : null);
+  // The hook only tracks presigned-URL resolution — the actual image byte
+  // fetch can still fail separately (network blip, expired-by-the-time-it-
+  // loads URL, ...), which onError below catches into this same error UI.
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => setImgFailed(false), [url]);
+  const effectiveStatus = imgFailed ? 'error' : status;
+
+  function handleRetry() {
+    setImgFailed(false);
+    retry();
+  }
+
   return (
     <div
       ref={ref}
-      onClick={onClick}
-      style={{ width: `${widthPercent}%`, aspectRatio: '1', position: 'relative', cursor: 'pointer', background: 'rgba(0,0,0,0.08)' }}
+      onClick={effectiveStatus === 'error' ? undefined : onClick}
+      style={{
+        width: `${widthPercent}%`,
+        aspectRatio: '1',
+        position: 'relative',
+        cursor: effectiveStatus === 'error' ? 'default' : 'pointer',
+        background: 'rgba(0,0,0,0.08)',
+      }}
     >
-      {url && (
-        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      {status === 'ready' && url && !imgFailed && (
+        <img
+          src={url}
+          alt=""
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={() => setImgFailed(true)}
+        />
       )}
-      {item.mediaType === 'VIDEO' && (
+      {effectiveStatus === 'loading' && inView && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Spinner size={28} />
+        </div>
+      )}
+      {effectiveStatus === 'error' && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleRetry();
+          }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4,
+            border: 'none',
+            background: 'rgba(0,0,0,0.05)',
+            color: 'var(--brand-600)',
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          <Icon icon={faRotateRight} style={{ fontSize: 18 }} />
+          Retry
+        </button>
+      )}
+      {effectiveStatus === 'ready' && item.mediaType === 'VIDEO' && (
         <div
           style={{
             position: 'absolute',
