@@ -1,4 +1,4 @@
-import { faPenToSquare, faStar as faStarSolid } from '@fortawesome/free-solid-svg-icons';
+import { faCommentMedical, faStar as faStarSolid } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -176,7 +176,7 @@ export function ConversationListPage() {
           title="New chat"
           onClick={() => navigate('/chats/new')}
         >
-          <Icon icon={faPenToSquare} />
+          <Icon icon={faCommentMedical} />
         </button>
       </aside>
 
