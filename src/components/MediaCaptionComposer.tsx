@@ -1,6 +1,7 @@
 import { faFileLines, faPaperPlane, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useState } from 'react';
 
+import { renderPdfFirstPage } from '../lib/pdfPreview';
 import { Icon } from './Icon';
 import { Spinner } from './Spinner';
 
@@ -14,27 +15,57 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function isPdf(file: File): boolean {
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+}
+
 type MediaCaptionComposerProps = {
   media: PendingWebMedia | null;
   onCancel: () => void;
   onSend: (caption: string) => Promise<boolean>;
 };
 
-/** WhatsApp-style preview-with-caption screen shown before actually sending a picked photo, video, or document — same pattern mobile's MediaCaptionComposer already used, ported here since web previously uploaded and sent every attachment immediately with no confirmation step. */
+/**
+ * WhatsApp-style preview-with-caption screen shown before actually sending
+ * a picked photo, video, or document — same layout as StatusComposer's own
+ * media step (.status-composer/.status-media-editor/.status-media-preview),
+ * reused directly rather than a bespoke design, per how the two are meant
+ * to look and feel the same. A PDF gets its actual first page rendered as
+ * the preview image (via pdfjs-dist) instead of a generic file icon; any
+ * other document type falls back to that icon.
+ */
 export function MediaCaptionComposer({ media, onCancel, onSend }: MediaCaptionComposerProps) {
   const [caption, setCaption] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
 
   useEffect(() => {
     setCaption('');
+    setPdfPreviewUrl(null);
     if (!media) {
       setObjectUrl(null);
       return;
     }
     const url = URL.createObjectURL(media.file);
     setObjectUrl(url);
-    return () => URL.revokeObjectURL(url);
+
+    let cancelled = false;
+    if (media.kind === 'file' && isPdf(media.file)) {
+      setPdfPreviewLoading(true);
+      renderPdfFirstPage(media.file).then((dataUrl) => {
+        if (!cancelled) {
+          setPdfPreviewUrl(dataUrl);
+          setPdfPreviewLoading(false);
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      URL.revokeObjectURL(url);
+    };
   }, [media]);
 
   if (!media) return null;
@@ -51,43 +82,55 @@ export function MediaCaptionComposer({ media, onCancel, onSend }: MediaCaptionCo
   }
 
   return (
-    <div className="modal-backdrop">
-      <div className="media-caption-composer" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="icon-button media-caption-close" onClick={onCancel} title="Cancel">
-          <Icon icon={faXmark} />
-        </button>
-
-        <div className="media-caption-preview">
-          {media.kind === 'image' && objectUrl && <img src={objectUrl} alt="" />}
-          {media.kind === 'video' && objectUrl && <video src={objectUrl} controls />}
-          {media.kind === 'file' && (
-            <div className="media-caption-file">
-              <div className="media-caption-file-icon">
-                <Icon icon={faFileLines} />
-              </div>
-              <div className="media-caption-file-name">{media.name}</div>
-              <div className="media-caption-file-size">{formatFileSize(media.size)}</div>
-            </div>
-          )}
-        </div>
-
-        <div className="media-caption-bar">
-          <input
-            className="media-caption-input"
-            placeholder="Add a caption…"
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            autoFocus
-          />
-          <button type="button" className="composer-send" onClick={handleSend} disabled={isSending}>
-            {isSending ? <Spinner size={18} /> : <Icon icon={faPaperPlane} />}
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="status-composer" onClick={(e) => e.stopPropagation()}>
+        <div className="status-media-editor">
+          <button type="button" className="icon-button status-composer-close" onClick={onCancel} title="Cancel">
+            <Icon icon={faXmark} />
           </button>
+
+          {media.kind === 'image' && objectUrl && <img src={objectUrl} alt="" className="status-media-preview" />}
+
+          {media.kind === 'video' && objectUrl && (
+            <video src={objectUrl} controls playsInline className="status-media-preview" />
+          )}
+
+          {media.kind === 'file' && (
+            <>
+              {pdfPreviewUrl ? (
+                <img src={pdfPreviewUrl} alt="" className="status-media-preview media-caption-pdf-page" />
+              ) : (
+                <div className="status-media-preview media-caption-file">
+                  <div className="media-caption-file-icon">
+                    {pdfPreviewLoading ? <Spinner size={22} /> : <Icon icon={faFileLines} />}
+                  </div>
+                </div>
+              )}
+              <div className="media-caption-file-meta">
+                <div className="media-caption-file-name">{media.name}</div>
+                <div className="media-caption-file-size">{formatFileSize(media.size)}</div>
+              </div>
+            </>
+          )}
+
+          <div className="status-media-caption-row">
+            <input
+              className="composer-input"
+              placeholder="Add a caption"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              autoFocus
+            />
+            <button type="button" className="composer-send" onClick={handleSend} disabled={isSending}>
+              {isSending ? <Spinner size={18} /> : <Icon icon={faPaperPlane} />}
+            </button>
+          </div>
         </div>
       </div>
     </div>
