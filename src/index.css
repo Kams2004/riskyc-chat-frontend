@@ -1938,6 +1938,8 @@ h1.step-title {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-top: 40px;
+  padding: 30px 0;
 }
 
 .media-caption-file-icon {
@@ -1971,6 +1973,73 @@ h1.step-title {
   color: var(--text-muted);
   font-size: 13px;
   margin-top: 2px;
+}
+
+/* Own wrapper (distinct from .status-media-editor) specifically so this
+   never forces a black-letterboxed fixed-height frame the way Status's own
+   full-bleed preview intentionally does — the image/video here just sizes
+   to its own content, centered, on the composer's normal surface color. */
+.media-caption-editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.media-caption-preview-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 40px;
+}
+
+.media-caption-preview-media {
+  max-width: 100%;
+  max-height: min(480px, 60vh);
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.gallery-caption-thumb-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 0;
+}
+
+.gallery-caption-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  background: var(--tint1);
+}
+
+.gallery-caption-thumb.active {
+  border-color: var(--brand-500);
+}
+
+.gallery-caption-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.gallery-caption-thumb-video-badge {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 12px;
 }
 
 .status-composer-pick {

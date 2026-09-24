@@ -24,6 +24,7 @@ import { CallLogRow } from '../components/CallLogRow';
 import { FileAttachmentRow } from '../components/FileAttachmentRow';
 import { Icon } from '../components/Icon';
 import { firstUrlIn, LinkPreviewCard } from '../components/LinkPreviewCard';
+import { GalleryCaptionComposer, type PendingGalleryFile } from '../components/GalleryCaptionComposer';
 import { MediaCaptionComposer, type PendingWebMedia } from '../components/MediaCaptionComposer';
 import { MediaViewer } from '../components/MediaViewer';
 import { MessageAttachmentGrid } from '../components/MessageAttachmentGrid';
@@ -137,6 +138,7 @@ export function ConversationThreadPage({
   const [forwardPickerFor, setForwardPickerFor] = useState<MessageEnvelope | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingWebMedia, setPendingWebMedia] = useState<PendingWebMedia | null>(null);
+  const [pendingGalleryFiles, setPendingGalleryFiles] = useState<PendingGalleryFile[] | null>(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [viewer, setViewer] = useState<{ items: AttachmentItem[]; index: number } | null>(null);
@@ -461,10 +463,21 @@ export function ConversationThreadPage({
 
     // Documents never join a photo/video gallery (attachments are IMAGE/VIDEO
     // only, same as mobile) — each goes out as its own FILE message; any
-    // image/video files picked alongside them still go through the normal
-    // gallery path below.
+    // image/video files picked alongside them still go through the gallery
+    // preview below.
     const mediaFiles = files.filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/'));
     const documentFiles = files.filter((f) => !f.type.startsWith('image/') && !f.type.startsWith('video/'));
+
+    // 2+ images/videos get the same preview-with-caption step as a single
+    // file, just with a thumbnail strip to pick which one's shown large —
+    // see GalleryCaptionComposer/handleSendPendingGallery. A lone media file
+    // mixed in among documents (mediaFiles.length === 1 here) is rare enough
+    // to leave on the old immediate-send path rather than add more branches.
+    if (mediaFiles.length > 1) {
+      setPendingGalleryFiles(
+        mediaFiles.map((file) => ({ file, type: file.type.startsWith('video/') ? ('VIDEO' as const) : ('IMAGE' as const) }))
+      );
+    }
 
     setIsUploading(true);
     const reply = replyDraft ?? undefined;
@@ -474,26 +487,43 @@ export function ConversationThreadPage({
         sendMessage('', { type: 'FILE', objectKey, fileName: file.name }, false, undefined, reply);
       }
 
-      if (mediaFiles.length > 0) {
-        const uploaded = await Promise.all(
-          mediaFiles.map(async (file) => {
-            const objectKey = await uploadMedia(file);
-            return { type: file.type.startsWith('video/') ? ('VIDEO' as const) : ('IMAGE' as const), objectKey };
-          })
-        );
-        if (uploaded.length === 1) {
-          sendMessage('', { type: uploaded[0].type, objectKey: uploaded[0].objectKey }, false, undefined, reply);
-        } else {
-          sendMessage('', undefined, false, uploaded, reply);
-        }
+      if (mediaFiles.length === 1) {
+        const file = mediaFiles[0];
+        const objectKey = await uploadMedia(file);
+        sendMessage('', { type: file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE', objectKey }, false, undefined, reply);
       }
 
-      setReplyDraft(null);
-      onMessageSent?.();
+      if (documentFiles.length > 0 || mediaFiles.length === 1) {
+        setReplyDraft(null);
+        onMessageSent?.();
+      }
     } catch (err) {
       window.alert('Could not send — please check your connection and try again.');
     } finally {
       setIsUploading(false);
+    }
+  }
+
+  async function handleSendPendingGallery(caption: string): Promise<boolean> {
+    if (!pendingGalleryFiles || pendingGalleryFiles.length === 0) return false;
+    const items = pendingGalleryFiles;
+    const reply = replyDraft ?? undefined;
+    try {
+      const uploaded = await Promise.all(
+        items.map(async (item) => ({ type: item.type, objectKey: await uploadMedia(item.file) }))
+      );
+      if (uploaded.length === 1) {
+        sendMessage(caption, { type: uploaded[0].type, objectKey: uploaded[0].objectKey }, false, undefined, reply);
+      } else {
+        sendMessage(caption, undefined, false, uploaded, reply);
+      }
+      setPendingGalleryFiles(null);
+      setReplyDraft(null);
+      onMessageSent?.();
+      return true;
+    } catch {
+      window.alert('Could not send — please check your connection and try again.');
+      return false;
     }
   }
 
@@ -982,6 +1012,8 @@ export function ConversationThreadPage({
       {viewer && <MediaViewer items={viewer.items} initialIndex={viewer.index} onClose={() => setViewer(null)} />}
 
       <MediaCaptionComposer media={pendingWebMedia} onCancel={() => setPendingWebMedia(null)} onSend={handleSendPendingMedia} />
+
+      <GalleryCaptionComposer items={pendingGalleryFiles} onCancel={() => setPendingGalleryFiles(null)} onSend={handleSendPendingGallery} />
 
       {forwardPickerFor && (
         <ForwardPickerModal

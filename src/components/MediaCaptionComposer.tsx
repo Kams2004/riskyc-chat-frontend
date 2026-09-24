@@ -84,23 +84,31 @@ export function MediaCaptionComposer({ media, onCancel, onSend }: MediaCaptionCo
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="status-composer" onClick={(e) => e.stopPropagation()}>
-        <div className="status-media-editor">
+        <div className="media-caption-editor">
           <button type="button" className="icon-button status-composer-close" onClick={onCancel} title="Cancel">
             <Icon icon={faXmark} />
           </button>
 
-          {media.kind === 'image' && objectUrl && <img src={objectUrl} alt="" className="status-media-preview" />}
+          {media.kind === 'image' && objectUrl && (
+            <div className="media-caption-preview-wrap">
+              <img src={objectUrl} alt="" className="media-caption-preview-media" />
+            </div>
+          )}
 
           {media.kind === 'video' && objectUrl && (
-            <video src={objectUrl} controls playsInline className="status-media-preview" />
+            <div className="media-caption-preview-wrap">
+              <video src={objectUrl} controls playsInline className="media-caption-preview-media" />
+            </div>
           )}
 
           {media.kind === 'file' && (
             <>
               {pdfPreviewUrl ? (
-                <img src={pdfPreviewUrl} alt="" className="status-media-preview media-caption-pdf-page" />
+                <div className="media-caption-preview-wrap">
+                  <img src={pdfPreviewUrl} alt="" className="media-caption-preview-media media-caption-pdf-page" />
+                </div>
               ) : (
-                <div className="status-media-preview media-caption-file">
+                <div className="media-caption-file">
                   <div className="media-caption-file-icon">
                     {pdfPreviewLoading ? <Spinner size={22} /> : <Icon icon={faFileLines} />}
                   </div>
