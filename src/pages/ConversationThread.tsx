@@ -8,6 +8,7 @@ import {
   faPaperclip,
   faPaperPlane,
   faPhone,
+  faStamp,
   faStar as faStarSolid,
   faThumbtack,
   faTriangleExclamation,
@@ -30,6 +31,8 @@ import { Spinner } from '../components/Spinner';
 import { MessageInfoModal } from '../components/MessageInfoModal';
 import { MessageTicks } from '../components/MessageTicks';
 import { ReactionPicker, ReactionPills } from '../components/ReactionBar';
+import { StickerMessage } from '../components/StickerMessage';
+import { StickerPicker } from '../components/StickerPicker';
 import { VoiceMessagePlayer } from '../components/VoiceMessagePlayer';
 import { VoiceRecorderButton } from '../components/VoiceRecorderButton';
 import { useAuth } from '../features/auth/AuthContext';
@@ -133,6 +136,7 @@ export function ConversationThreadPage({
   const [forwardPickerFor, setForwardPickerFor] = useState<MessageEnvelope | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [viewer, setViewer] = useState<{ items: AttachmentItem[]; index: number } | null>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [disappearingPickerOpen, setDisappearingPickerOpen] = useState(false);
@@ -275,6 +279,7 @@ export function ConversationThreadPage({
     if (m.mediaType === 'VIDEO') return '🎥 Video';
     if (m.mediaType === 'AUDIO') return '🎤 Voice message';
     if (m.mediaType === 'FILE') return '📎 Document';
+    if (m.mediaType === 'STICKER') return 'Sticker';
     if (m.attachments && m.attachments.length > 0) return `📷 ${m.attachments.length} photos`;
     return m.ciphertext.length > 80 ? m.ciphertext.slice(0, 77) + '...' : m.ciphertext;
   }
@@ -476,6 +481,14 @@ export function ConversationThreadPage({
     const reply = replyDraft ?? undefined;
     sendMessage('', { type: 'AUDIO', objectKey, durationMs }, false, undefined, reply);
     setReplyDraft(null);
+    onMessageSent?.();
+  }
+
+  function handleStickerSend(objectKey: string) {
+    const reply = replyDraft ?? undefined;
+    sendMessage('', { type: 'STICKER', objectKey }, false, undefined, reply);
+    setReplyDraft(null);
+    setStickerPickerOpen(false);
     onMessageSent?.();
   }
 
@@ -705,7 +718,9 @@ export function ConversationThreadPage({
 
           return (
             <div key={m.messageId} className={`bubble-row ${isMine ? 'mine' : ''}`} data-message-id={m.messageId}>
-              <div className={`bubble ${isMine ? 'mine' : 'theirs'} ${highlightedMessageId === m.messageId ? 'highlighted' : ''}`}>
+              <div
+                className={`bubble ${isMine ? 'mine' : 'theirs'} ${highlightedMessageId === m.messageId ? 'highlighted' : ''} ${m.mediaType === 'STICKER' ? 'sticker' : ''}`}
+              >
                 {isGroup && !isMine && <div className="bubble-sender">{memberName(m.senderId)}</div>}
                 {m.forwarded && <span className="bubble-forwarded">Forwarded</span>}
                 {starredHere && <span className="bubble-star-badge" title="Starred"><Icon icon={faStarSolid} /></span>}
@@ -750,6 +765,7 @@ export function ConversationThreadPage({
                 {m.mediaType === 'FILE' && m.mediaObjectKey && (
                   <FileAttachmentRow objectKey={m.mediaObjectKey} fileName={m.mediaFileName} />
                 )}
+                {m.mediaType === 'STICKER' && m.mediaObjectKey && <StickerMessage objectKey={m.mediaObjectKey} />}
                 {!!m.ciphertext && <div>{m.ciphertext}</div>}
                 {!!url && <LinkPreviewCard url={url} isMine={isMine} />}
                 <div className="bubble-meta">
@@ -863,6 +879,8 @@ export function ConversationThreadPage({
           Only admins can send messages in this group.
         </div>
       ) : (
+      <div style={{ position: 'relative' }}>
+        {stickerPickerOpen && <StickerPicker onPick={handleStickerSend} onClose={() => setStickerPickerOpen(false)} />}
       <form className="composer" onSubmit={handleSend}>
         <input
           ref={fileInputRef}
@@ -880,6 +898,16 @@ export function ConversationThreadPage({
             disabled={isUploading}
           >
             {isUploading ? '…' : <Icon icon={faPaperclip} />}
+          </button>
+        )}
+        {!isRecordingVoice && (
+          <button
+            type="button"
+            className={`icon-button ${stickerPickerOpen ? 'active' : ''}`}
+            title="Stickers"
+            onClick={() => setStickerPickerOpen((v) => !v)}
+          >
+            <Icon icon={faStamp} />
           </button>
         )}
         {!isRecordingVoice && (
@@ -902,6 +930,7 @@ export function ConversationThreadPage({
           <VoiceRecorderButton onSend={handleVoiceSend} onRecordingChange={setIsRecordingVoice} />
         )}
       </form>
+      </div>
       )}
 
       {viewer && <MediaViewer items={viewer.items} initialIndex={viewer.index} onClose={() => setViewer(null)} />}

@@ -1,4 +1,4 @@
-import { faStar as faStarSolid } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faStar as faStarSolid } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -169,6 +169,15 @@ export function ConversationListPage() {
             );
           })}
         </div>
+
+        <button
+          type="button"
+          className="sidebar-compose-fab"
+          title="New chat"
+          onClick={() => navigate('/chats/new')}
+        >
+          <Icon icon={faPenToSquare} />
+        </button>
       </aside>
 
       {conversationId ? (

@@ -1,5 +1,5 @@
 import { config } from '../../lib/config';
-import { apiFetch } from '../../lib/httpClient';
+import { apiFetch, ApiError } from '../../lib/httpClient';
 
 export type UserResult = {
   userId: string;
@@ -16,6 +16,24 @@ export function searchUsers(query: string): Promise<UserResult[]> {
 
 export function getUser(userId: string): Promise<UserResult> {
   return apiFetch(`${config.authServiceUrl}/api/users/${userId}`);
+}
+
+/**
+ * Looks up a single phone number the caller typed manually. Returns the
+ * account if one is registered with that exact number, or null if not —
+ * same endpoint/contract as mobile's lookupByPhone, used to decide between
+ * "start a chat with this person" and "offer to invite this number".
+ */
+export async function lookupByPhone(phoneNumber: string): Promise<UserResult | null> {
+  try {
+    return await apiFetch<UserResult>(`${config.authServiceUrl}/api/users/lookup-by-phone`, {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber }),
+    });
+  } catch (e: unknown) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
 }
 
 export function updateMyProfile(fields: { displayName?: string; avatarObjectKey?: string }): Promise<UserResult> {

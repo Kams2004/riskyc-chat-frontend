@@ -2,7 +2,7 @@ import { config } from '../../lib/config';
 import { apiFetch } from '../../lib/httpClient';
 
 export type MessageStatus = 'SENT' | 'DELIVERED' | 'READ';
-export type MediaType = 'IMAGE' | 'VIDEO' | 'FILE' | 'AUDIO' | 'CALL';
+export type MediaType = 'IMAGE' | 'VIDEO' | 'FILE' | 'AUDIO' | 'CALL' | 'STICKER';
 
 export type AttachmentItem = {
   position: number;
