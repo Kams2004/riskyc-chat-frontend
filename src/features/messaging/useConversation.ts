@@ -23,6 +23,8 @@ export type OutgoingMedia = {
   durationMs?: number | null;
   /** IMAGE only — drawing/text overlay created in ImageEditor. See lib/overlay.ts. */
   overlayJson?: string | null;
+  /** Bytes — gallery items only, feeds the combined-size download gate. */
+  fileSize?: number | null;
 };
 
 export type ReplyToDraft = {
@@ -268,6 +270,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
               mediaObjectKey: a.objectKey,
               mediaFileName: a.fileName ?? null,
               mediaDurationMs: a.durationMs ?? null,
+              mediaFileSize: a.fileSize ?? null,
             }))
           : undefined;
       const envelope: MessageEnvelope = {

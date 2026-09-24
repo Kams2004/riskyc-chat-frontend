@@ -1,4 +1,4 @@
-import { faRotateRight } from '@fortawesome/free-solid-svg-icons';
+import { faDownload, faRotateRight } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useState } from 'react';
 
 import { useMediaUrlWithStatus } from '../features/media/useMediaUrl';
@@ -13,6 +13,11 @@ import { Spinner } from './Spinner';
 // phone-width browser viewport (a real, unverified-safe overflow risk when
 // this used a hardcoded 260px regardless of viewport).
 const GAP_PERCENT = 1.5;
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function Tile({ item, widthPercent, onClick, overlay }: { item: AttachmentItem; widthPercent: number; onClick: () => void; overlay?: React.ReactNode }) {
   // Off-screen tiles in a long scrolled thread shouldn't each mint a
@@ -111,10 +116,7 @@ function Tile({ item, widthPercent, onClick, overlay }: { item: AttachmentItem; 
   );
 }
 
-/** WhatsApp-style collage — same layout rules as mobile's MessageAttachmentGrid, sized as percentages of a capped-but-fluid container so it can't overflow a narrow viewport. */
-export function MessageAttachmentGrid({ items, onOpen }: { items: AttachmentItem[]; onOpen: (index: number) => void }) {
-  if (items.length === 0) return null;
-
+function GridBody({ items, onOpen }: { items: AttachmentItem[]; onOpen: (index: number) => void }) {
   const containerStyle: React.CSSProperties = { width: 'min(260px, 100%)', borderRadius: 12, overflow: 'hidden' };
 
   if (items.length === 1) {
@@ -168,5 +170,66 @@ export function MessageAttachmentGrid({ items, onOpen }: { items: AttachmentItem
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * WhatsApp-style collage — same layout rules as mobile's MessageAttachmentGrid,
+ * sized as percentages of a capped-but-fluid container so it can't overflow a
+ * narrow viewport. A single item auto-loads as before; 2+ items (a real
+ * gallery send) stay behind a download gate showing the combined size and
+ * item count until explicitly tapped, instead of every tile silently
+ * fetching the moment it scrolls into view — a single item was never batched
+ * this way, matching how a lone photo isn't merged with an unrelated one
+ * sent separately.
+ */
+export function MessageAttachmentGrid({ items, onOpen }: { items: AttachmentItem[]; onOpen: (index: number) => void }) {
+  const [revealed, setRevealed] = useState(items.length <= 1);
+
+  if (items.length === 0) return null;
+  if (revealed) return <GridBody items={items} onOpen={onOpen} />;
+
+  const totalBytes = items.reduce((sum, i) => sum + (i.mediaFileSize ?? 0), 0);
+  const knownSize = items.every((i) => typeof i.mediaFileSize === 'number');
+  const label = items[0].mediaType === 'VIDEO' && items.every((i) => i.mediaType === 'VIDEO')
+    ? `${items.length} videos`
+    : items.every((i) => i.mediaType === 'IMAGE')
+      ? `${items.length} photos`
+      : `${items.length} items`;
+
+  return (
+    <button
+      type="button"
+      onClick={() => setRevealed(true)}
+      style={{
+        width: 'min(260px, 100%)',
+        aspectRatio: '1',
+        borderRadius: 12,
+        border: 'none',
+        cursor: 'pointer',
+        background: 'rgba(0,0,0,0.35)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          background: 'rgba(0,0,0,0.55)',
+          color: '#fff',
+          borderRadius: 999,
+          padding: '10px 18px',
+        }}
+      >
+        <Icon icon={faDownload} style={{ fontSize: 16 }} />
+        <div style={{ textAlign: 'left' }}>
+          {knownSize && totalBytes > 0 && <div style={{ fontWeight: 700, fontSize: 13 }}>{formatBytes(totalBytes)}</div>}
+          <div style={{ fontSize: 12, opacity: 0.85 }}>{label}</div>
+        </div>
+      </div>
+    </button>
   );
 }

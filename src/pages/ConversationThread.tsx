@@ -512,7 +512,7 @@ export function ConversationThreadPage({
     const reply = replyDraft ?? undefined;
     try {
       const uploaded = await Promise.all(
-        items.map(async (item) => ({ type: item.type, objectKey: await uploadMedia(item.file) }))
+        items.map(async (item) => ({ type: item.type, objectKey: await uploadMedia(item.file), fileSize: item.file.size }))
       );
       if (uploaded.length === 1) {
         sendMessage(caption, { type: uploaded[0].type, objectKey: uploaded[0].objectKey }, false, undefined, reply);
