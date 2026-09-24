@@ -12,6 +12,8 @@ export type AttachmentItem = {
   mediaDurationMs: number | null;
   /** Bytes, client-supplied at send time — feeds the combined-size download gate shown before a multi-item gallery has been fetched. Null for an item sent before this field existed. */
   mediaFileSize?: number | null;
+  /** Opaque drawing/text-overlay JSON for an IMAGE gallery item — see lib/overlay.ts. Null for a VIDEO item or one without an overlay. */
+  overlayJson?: string | null;
 };
 
 export type MessageEnvelope = {

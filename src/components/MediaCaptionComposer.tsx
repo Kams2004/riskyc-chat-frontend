@@ -2,7 +2,8 @@ import { faFileLines, faPaperPlane, faPenNib, faXmark } from '@fortawesome/free-
 import { useEffect, useState } from 'react';
 
 import { renderPdfFirstPage } from '../lib/pdfPreview';
-import { EMPTY_OVERLAY, serializeOverlay, type StatusOverlay } from '../lib/overlay';
+import { EMPTY_OVERLAY, isOverlayEmpty, serializeOverlay, type StatusOverlay } from '../lib/overlay';
+import { ConfirmDialog } from './ConfirmDialog';
 import { Icon } from './Icon';
 import { ImageEditor } from './ImageEditor';
 import { OverlayView } from './OverlayView';
@@ -48,6 +49,7 @@ export function MediaCaptionComposer({ media, onCancel, onSend }: MediaCaptionCo
   const [workingFile, setWorkingFile] = useState<File | null>(null);
   const [overlay, setOverlay] = useState<StatusOverlay>(EMPTY_OVERLAY);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
     setCaption('');
@@ -90,6 +92,16 @@ export function MediaCaptionComposer({ media, onCancel, onSend }: MediaCaptionCo
 
   if (!media) return null;
 
+  const hasUnsavedChanges = !!caption.trim() || workingFile !== media.file || !isOverlayEmpty(overlay);
+
+  function handleCloseClick() {
+    if (hasUnsavedChanges) {
+      setConfirmDiscard(true);
+    } else {
+      onCancel();
+    }
+  }
+
   async function handleSend() {
     if (isSending || !workingFile) return;
     setIsSending(true);
@@ -103,10 +115,10 @@ export function MediaCaptionComposer({ media, onCancel, onSend }: MediaCaptionCo
 
   return (
     <>
-      <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal-backdrop" onClick={handleCloseClick}>
         <div className="status-composer" onClick={(e) => e.stopPropagation()}>
           <div className="media-caption-editor">
-            <button type="button" className="icon-button status-composer-close" onClick={onCancel} title="Cancel">
+            <button type="button" className="icon-button status-composer-close" onClick={handleCloseClick} title="Cancel">
               <Icon icon={faXmark} />
             </button>
 
@@ -189,6 +201,16 @@ export function MediaCaptionComposer({ media, onCancel, onSend }: MediaCaptionCo
             setOverlay(nextOverlay);
             setEditorOpen(false);
           }}
+        />
+      )}
+
+      {confirmDiscard && (
+        <ConfirmDialog
+          title="Discard this?"
+          body="Your caption and any edits will be lost."
+          confirmLabel="Discard"
+          onCancel={() => setConfirmDiscard(false)}
+          onConfirm={onCancel}
         />
       )}
     </>

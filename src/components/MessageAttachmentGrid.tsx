@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react';
 
 import { useMediaUrlWithStatus } from '../features/media/useMediaUrl';
 import { useInView } from '../lib/useInView';
+import { parseOverlay } from '../lib/overlay';
 import type { AttachmentItem } from '../features/messaging/api';
 import { Icon } from './Icon';
+import { OverlayView } from './OverlayView';
 import { Spinner } from './Spinner';
 
 // A percentage-of-container width rather than a fixed pixel value — the
@@ -58,6 +60,7 @@ function Tile({ item, widthPercent, onClick, overlay }: { item: AttachmentItem; 
           onError={() => setImgFailed(true)}
         />
       )}
+      {status === 'ready' && !imgFailed && item.overlayJson && <OverlayView overlay={parseOverlay(item.overlayJson)!} />}
       {effectiveStatus === 'loading' && inView && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Spinner size={28} />

@@ -1,17 +1,18 @@
-import { faCheck, faCrop, faPenNib, faRotateRight, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faCheck, faCrop, faFont, faPenNib, faRotateRight, faWandMagicSparkles, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useRef, useState } from 'react';
 
-import { EMPTY_OVERLAY, type DrawStroke, type StatusOverlay } from '../lib/overlay';
+import { EMPTY_OVERLAY, isOverlayEmpty, type DrawStroke, type StatusOverlay } from '../lib/overlay';
+import { ConfirmDialog } from './ConfirmDialog';
 import { Icon } from './Icon';
 import { OverlayView } from './OverlayView';
 
 const DRAW_COLORS = ['#ffffff', '#f44336', '#ff9800', '#ffeb3b', '#4caf50', '#00bcd4', '#2196f3', '#9c27b0', '#000000'];
 
-type Tool = 'crop' | 'rotate' | 'draw';
+type Tool = 'crop' | 'rotate' | 'draw' | 'text';
 type CropRect = { x: number; y: number; width: number; height: number }; // fractional, 0-1
 
-/** Renders a File onto a canvas and resolves a new File from the result — shared by both rotate and crop-apply. */
-async function canvasToFile(canvas: HTMLCanvasElement, sourceFile: File): Promise<File> {
+/** Renders a canvas onto a new File — shared by rotate/crop/enhance, each of which bakes its result immediately rather than deferring. */
+async function canvasToFile(canvas: HTMLCanvasElement, sourceFile: File, hd: boolean): Promise<File> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
@@ -22,7 +23,7 @@ async function canvasToFile(canvas: HTMLCanvasElement, sourceFile: File): Promis
         resolve(new File([blob], sourceFile.name, { type: blob.type || sourceFile.type }));
       },
       sourceFile.type === 'image/png' ? 'image/png' : 'image/jpeg',
-      0.92
+      hd ? 0.98 : 0.85
     );
   });
 }
@@ -44,24 +45,30 @@ type ImageEditorProps = {
 };
 
 /**
- * Crop and rotate bake new pixels client-side (canvas), each applied
- * immediately on confirm rather than deferred — so later crop math always
- * works against the current, already-rotated image instead of needing
- * combined-transform bookkeeping. Drawing stays non-destructive (an
- * overlay, composited at view time — see OverlayView), matching the
- * existing convention Status already uses for the exact same reason.
+ * Crop, rotate, and auto-enhance bake new pixels client-side (canvas), each
+ * applied immediately on confirm rather than deferred — so later crop math
+ * always works against the current, already-transformed image instead of
+ * needing combined-transform bookkeeping. Drawing and the text label stay
+ * non-destructive (an overlay, composited at view time — see OverlayView),
+ * matching the existing convention Status already uses for the exact same
+ * reason.
  */
 export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: ImageEditorProps) {
   const [workingFile, setWorkingFile] = useState(file);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [tool, setTool] = useState<Tool>('draw');
+  const [tool, setTool] = useState<Tool | null>(null);
   const [overlay, setOverlay] = useState<StatusOverlay>(initialOverlay);
   const [drawColor, setDrawColor] = useState(DRAW_COLORS[0]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isHd, setIsHd] = useState(false);
   const [cropRect, setCropRect] = useState<CropRect>({ x: 0.05, y: 0.05, width: 0.9, height: 0.9 });
+  const [textDraft, setTextDraft] = useState<{ x: number; y: number; value: string } | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const imageBoxRef = useRef<HTMLDivElement>(null);
   const drawingStrokeRef = useRef<DrawStroke | null>(null);
   const cropDragRef = useRef<{ mode: 'move' | 'nw' | 'ne' | 'sw' | 'se'; startX: number; startY: number; start: CropRect } | null>(null);
+
+  const hasUnsavedChanges = workingFile !== file || !isOverlayEmpty(overlay);
 
   useEffect(() => {
     const url = URL.createObjectURL(workingFile);
@@ -82,7 +89,7 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate(Math.PI / 2);
       ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-      const rotated = await canvasToFile(canvas, workingFile);
+      const rotated = await canvasToFile(canvas, workingFile, isHd);
       setWorkingFile(rotated);
       setCropRect({ x: 0.05, y: 0.05, width: 0.9, height: 0.9 });
     } finally {
@@ -105,14 +112,36 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-      const cropped = await canvasToFile(canvas, workingFile);
+      const cropped = await canvasToFile(canvas, workingFile, isHd);
       setWorkingFile(cropped);
       setCropRect({ x: 0, y: 0, width: 1, height: 1 });
       // A crop shifts everything drawn so far out from under its old
       // coordinates — rather than trying to remap strokes into the new
-      // frame, clear them; re-drawing after crop is confirming is
-      // cheap and unambiguous.
+      // frame, clear them; re-drawing after confirming crop is cheap and
+      // unambiguous.
       setOverlay(EMPTY_OVERLAY);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  async function applyEnhance() {
+    if (!objectUrl || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const img = await loadImage(objectUrl);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      // A modest, fixed contrast/saturation/brightness boost — not a real
+      // auto-levels/histogram algorithm, just enough to visibly "pop" the
+      // same way a one-tap phone-camera enhance does.
+      ctx.filter = 'contrast(1.12) saturate(1.18) brightness(1.04)';
+      ctx.drawImage(img, 0, 0);
+      const enhanced = await canvasToFile(canvas, workingFile, isHd);
+      setWorkingFile(enhanced);
     } finally {
       setIsProcessing(false);
     }
@@ -127,13 +156,18 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
     return { x, y };
   }
 
-  function handleDrawStart(e: React.PointerEvent) {
-    if (tool !== 'draw') return;
-    const p = pointFromEvent(e);
-    if (!p) return;
-    const stroke: DrawStroke = { color: drawColor, points: [p] };
-    drawingStrokeRef.current = stroke;
-    setOverlay((prev) => ({ ...prev, strokes: [...prev.strokes, stroke] }));
+  function handleCanvasDown(e: React.PointerEvent) {
+    if (tool === 'draw') {
+      const p = pointFromEvent(e);
+      if (!p) return;
+      const stroke: DrawStroke = { color: drawColor, points: [p] };
+      drawingStrokeRef.current = stroke;
+      setOverlay((prev) => ({ ...prev, strokes: [...prev.strokes, stroke] }));
+    } else if (tool === 'text') {
+      const p = pointFromEvent(e);
+      if (!p) return;
+      setTextDraft({ x: p.x, y: p.y, value: overlay.text?.text ?? '' });
+    }
   }
 
   function handleDrawMove(e: React.PointerEvent) {
@@ -146,6 +180,16 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
 
   function handleDrawEnd() {
     drawingStrokeRef.current = null;
+  }
+
+  function commitTextDraft() {
+    if (!textDraft) return;
+    const trimmed = textDraft.value.trim();
+    setOverlay((prev) => ({
+      ...prev,
+      text: trimmed ? { text: trimmed, color: drawColor, x: textDraft.x, y: textDraft.y } : null,
+    }));
+    setTextDraft(null);
   }
 
   function handleCropHandleDown(mode: 'move' | 'nw' | 'ne' | 'sw' | 'se', e: React.PointerEvent) {
@@ -197,22 +241,44 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
     onConfirm({ file: workingFile, overlay });
   }
 
+  function handleCloseClick() {
+    if (hasUnsavedChanges) {
+      setConfirmDiscard(true);
+    } else {
+      onCancel();
+    }
+  }
+
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
+    <div className="modal-backdrop" onClick={handleCloseClick}>
       <div className="image-editor" onClick={(e) => e.stopPropagation()}>
         <div className="image-editor-toolbar">
-          <button type="button" className="icon-button" onClick={onCancel} title="Cancel">
+          <button type="button" className="icon-button" onClick={handleCloseClick} title="Cancel">
             <Icon icon={faXmark} />
           </button>
           <div className="image-editor-tools">
-            <button type="button" className={`image-editor-tool ${tool === 'crop' ? 'active' : ''}`} onClick={() => setTool('crop')}>
-              <Icon icon={faCrop} /> Crop
+            <button type="button" className={`image-editor-tool ${tool === 'rotate' ? 'active' : ''}`} onClick={applyRotate} title="Rotate" disabled={isProcessing}>
+              <Icon icon={faRotateRight} />
             </button>
-            <button type="button" className={`image-editor-tool ${tool === 'rotate' ? 'active' : ''}`} onClick={() => setTool('rotate')}>
-              <Icon icon={faRotateRight} /> Rotate
+            <button type="button" className={`image-editor-tool ${tool === 'crop' ? 'active' : ''}`} onClick={() => setTool(tool === 'crop' ? null : 'crop')} title="Crop">
+              <Icon icon={faCrop} />
             </button>
-            <button type="button" className={`image-editor-tool ${tool === 'draw' ? 'active' : ''}`} onClick={() => setTool('draw')}>
-              <Icon icon={faPenNib} /> Draw
+            <button type="button" className="image-editor-tool" onClick={applyEnhance} title="Auto-enhance" disabled={isProcessing}>
+              <Icon icon={faWandMagicSparkles} />
+            </button>
+            <button type="button" className={`image-editor-tool ${tool === 'draw' ? 'active' : ''}`} onClick={() => setTool(tool === 'draw' ? null : 'draw')} title="Draw">
+              <Icon icon={faPenNib} />
+            </button>
+            <button type="button" className={`image-editor-tool ${tool === 'text' ? 'active' : ''}`} onClick={() => setTool(tool === 'text' ? null : 'text')} title="Add text">
+              <Icon icon={faFont} />
+            </button>
+            <button
+              type="button"
+              className={`image-editor-tool image-editor-hd ${isHd ? 'active' : ''}`}
+              onClick={() => setIsHd((v) => !v)}
+              title="HD quality"
+            >
+              HD
             </button>
           </div>
           <button type="button" className="icon-button image-editor-done" onClick={handleDone} title="Done">
@@ -223,7 +289,7 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
         <div
           className="image-editor-canvas"
           ref={imageBoxRef}
-          onPointerDown={tool === 'draw' ? handleDrawStart : undefined}
+          onPointerDown={tool === 'draw' || tool === 'text' ? handleCanvasDown : undefined}
           onPointerMove={(e) => {
             handleDrawMove(e);
             handleCropMove(e);
@@ -239,6 +305,27 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
         >
           {objectUrl && <img src={objectUrl} alt="" draggable={false} />}
           <OverlayView overlay={overlay} />
+
+          {textDraft && (
+            <div
+              className="image-editor-text-draft"
+              style={{ left: `${textDraft.x * 100}%`, top: `${textDraft.y * 100}%` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                autoFocus
+                value={textDraft.value}
+                onChange={(e) => setTextDraft({ ...textDraft, value: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitTextDraft();
+                  if (e.key === 'Escape') setTextDraft(null);
+                }}
+                onBlur={commitTextDraft}
+                style={{ color: drawColor }}
+                placeholder="Type text"
+              />
+            </div>
+          )}
 
           {tool === 'crop' && (
             <div
@@ -262,14 +349,6 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
           )}
         </div>
 
-        {tool === 'rotate' && (
-          <div className="image-editor-actions">
-            <button type="button" className="link-button" onClick={applyRotate} disabled={isProcessing}>
-              <Icon icon={faRotateRight} /> Rotate 90°
-            </button>
-          </div>
-        )}
-
         {tool === 'crop' && (
           <div className="image-editor-actions">
             <button type="button" className="link-button" onClick={applyCrop} disabled={isProcessing}>
@@ -278,7 +357,7 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
           </div>
         )}
 
-        {tool === 'draw' && (
+        {(tool === 'draw' || tool === 'text') && (
           <div className="image-editor-actions image-editor-swatches">
             {DRAW_COLORS.map((c) => (
               <button
@@ -292,6 +371,16 @@ export function ImageEditor({ file, initialOverlay, onCancel, onConfirm }: Image
           </div>
         )}
       </div>
+
+      {confirmDiscard && (
+        <ConfirmDialog
+          title="Discard changes?"
+          body="Your crop, rotation, drawing, or text will be lost."
+          confirmLabel="Discard"
+          onCancel={() => setConfirmDiscard(false)}
+          onConfirm={onCancel}
+        />
+      )}
     </div>
   );
 }

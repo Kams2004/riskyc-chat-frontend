@@ -24,7 +24,7 @@ import { CallLogRow } from '../components/CallLogRow';
 import { FileAttachmentRow } from '../components/FileAttachmentRow';
 import { Icon } from '../components/Icon';
 import { firstUrlIn, LinkPreviewCard } from '../components/LinkPreviewCard';
-import { GalleryCaptionComposer, type PendingGalleryFile } from '../components/GalleryCaptionComposer';
+import { GalleryCaptionComposer, type PendingGalleryFile, type SentGalleryItem } from '../components/GalleryCaptionComposer';
 import { MediaCaptionComposer, type PendingWebMedia } from '../components/MediaCaptionComposer';
 import { MediaViewer } from '../components/MediaViewer';
 import { MessageAttachmentGrid } from '../components/MessageAttachmentGrid';
@@ -506,16 +506,20 @@ export function ConversationThreadPage({
     }
   }
 
-  async function handleSendPendingGallery(caption: string): Promise<boolean> {
+  async function handleSendPendingGallery(caption: string, items: SentGalleryItem[]): Promise<boolean> {
     if (!pendingGalleryFiles || pendingGalleryFiles.length === 0) return false;
-    const items = pendingGalleryFiles;
     const reply = replyDraft ?? undefined;
     try {
       const uploaded = await Promise.all(
-        items.map(async (item) => ({ type: item.type, objectKey: await uploadMedia(item.file), fileSize: item.file.size }))
+        items.map(async (item) => ({
+          type: item.type,
+          objectKey: await uploadMedia(item.file),
+          fileSize: item.file.size,
+          overlayJson: item.overlayJson,
+        }))
       );
       if (uploaded.length === 1) {
-        sendMessage(caption, { type: uploaded[0].type, objectKey: uploaded[0].objectKey }, false, undefined, reply);
+        sendMessage(caption, { type: uploaded[0].type, objectKey: uploaded[0].objectKey, overlayJson: uploaded[0].overlayJson }, false, undefined, reply);
       } else {
         sendMessage(caption, undefined, false, uploaded, reply);
       }

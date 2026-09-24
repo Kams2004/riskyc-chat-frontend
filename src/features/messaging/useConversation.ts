@@ -271,6 +271,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
               mediaFileName: a.fileName ?? null,
               mediaDurationMs: a.durationMs ?? null,
               mediaFileSize: a.fileSize ?? null,
+              overlayJson: a.overlayJson ?? null,
             }))
           : undefined;
       const envelope: MessageEnvelope = {
