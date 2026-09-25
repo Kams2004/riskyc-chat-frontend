@@ -1829,7 +1829,25 @@ h1.step-title {
 .voice-recording-timer {
   font-size: 13.5px;
   color: var(--text-muted);
+  width: 34px;
+}
+
+.voice-recording-waveform {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  overflow: hidden;
+}
+
+.voice-recording-waveform-bar {
+  flex: 1;
+  min-width: 2px;
+  max-width: 3px;
+  border-radius: 1.5px;
+  background: var(--brand-500);
+  transition: height 0.08s ease-out;
 }
 
 /* ---------- Wallpaper picker (Settings) ---------- */
