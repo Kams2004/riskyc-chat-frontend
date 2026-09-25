@@ -179,15 +179,25 @@ function GridBody({ items, onOpen }: { items: AttachmentItem[]; onOpen: (index: 
 /**
  * WhatsApp-style collage — same layout rules as mobile's MessageAttachmentGrid,
  * sized as percentages of a capped-but-fluid container so it can't overflow a
- * narrow viewport. A single item auto-loads as before; 2+ items (a real
- * gallery send) stay behind a download gate showing the combined size and
- * item count until explicitly tapped, instead of every tile silently
- * fetching the moment it scrolls into view — a single item was never batched
- * this way, matching how a lone photo isn't merged with an unrelated one
- * sent separately.
+ * narrow viewport. With auto-download on (the default), a single item still
+ * auto-loads and 2+ items (a real gallery send) stay behind a download gate
+ * showing the combined size and item count until explicitly tapped, instead
+ * of every tile silently fetching the moment it scrolls into view — a single
+ * item was never batched this way, matching how a lone photo isn't merged
+ * with an unrelated one sent separately. With autoDownloadMedia off (see
+ * ConversationController#setAutoDownload backend-side, set from group/chat
+ * details), that gate applies to every item, single or not.
  */
-export function MessageAttachmentGrid({ items, onOpen }: { items: AttachmentItem[]; onOpen: (index: number) => void }) {
-  const [revealed, setRevealed] = useState(items.length <= 1);
+export function MessageAttachmentGrid({
+  items,
+  onOpen,
+  autoDownloadMedia = true,
+}: {
+  items: AttachmentItem[];
+  onOpen: (index: number) => void;
+  autoDownloadMedia?: boolean;
+}) {
+  const [revealed, setRevealed] = useState(autoDownloadMedia && items.length <= 1);
 
   if (items.length === 0) return null;
   if (revealed) return <GridBody items={items} onOpen={onOpen} />;

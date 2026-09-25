@@ -23,7 +23,7 @@ export type OutgoingMedia = {
   durationMs?: number | null;
   /** IMAGE only — drawing/text overlay created in ImageEditor. See lib/overlay.ts. */
   overlayJson?: string | null;
-  /** Bytes — gallery items only, feeds the combined-size download gate. */
+  /** Bytes — feeds the download gate's size label, single-attachment sends and gallery items alike. */
   fileSize?: number | null;
 };
 
@@ -62,6 +62,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
   const [muted, setMutedState] = useState(false);
   const [disappearingSeconds, setDisappearingSecondsState] = useState<number | null>(null);
+  const [autoDownloadMedia, setAutoDownloadMediaState] = useState(true);
   const socketRef = useRef<ChatSocket | null>(null);
   const isGroup = !!groupId;
 
@@ -102,6 +103,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
     setReactions([]);
     setMutedState(false);
     setDisappearingSecondsState(null);
+    setAutoDownloadMediaState(true);
     emptyWindowCountRef.current = 0;
 
     // Cache hit — show it instantly (no "loading" flash for a conversation
@@ -157,6 +159,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
         if (cancelled) return;
         setMutedState(settings.muted);
         setDisappearingSecondsState(settings.disappearingMessageSeconds);
+        setAutoDownloadMediaState(settings.autoDownloadMedia);
       })
       .catch((e) => console.warn('[useConversation] fetchConversationSettings failed', e));
 
@@ -286,6 +289,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
         mediaObjectKey: media?.objectKey,
         mediaFileName: media?.fileName,
         mediaDurationMs: media?.durationMs,
+        mediaFileSize: media?.fileSize,
         overlayJson: media?.overlayJson,
         forwarded,
         attachments: attachmentDtos,
@@ -371,6 +375,14 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
     [conversationId]
   );
 
+  const setAutoDownloadMedia = useCallback(
+    (next: boolean) => {
+      setAutoDownloadMediaState(next);
+      messagingApi.setAutoDownloadMedia(conversationId, next).catch((e) => console.warn('[useConversation] setAutoDownloadMedia failed', e));
+    },
+    [conversationId]
+  );
+
   /** The red "Try again" action on a message that failed to send while offline — re-sends the exact same envelope (still held in pendingEnvelopesRef) rather than composing a new one, so retrying doesn't create a duplicate message with a new id/timestamp. */
   const retrySendMessage = useCallback((messageId: string) => {
     const envelope = pendingEnvelopesRef.current.get(messageId);
@@ -433,5 +445,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
     setMuted,
     disappearingSeconds,
     setDisappearing,
+    autoDownloadMedia,
+    setAutoDownloadMedia,
   };
 }

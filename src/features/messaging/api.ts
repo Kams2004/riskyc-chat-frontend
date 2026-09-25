@@ -54,6 +54,8 @@ export type MessageEnvelope = {
   /** Both null/absent unless this message is a reply to a status. */
   replyToStatusId?: string | null;
   replyToStatusOwnerId?: string | null;
+  /** Bytes — single-attachment path's counterpart to AttachmentItem.mediaFileSize, feeds the auto-download-off download gate's size label. Null/absent for a message sent before this field existed. */
+  mediaFileSize?: number | null;
 };
 
 /**
@@ -106,9 +108,9 @@ export function listConversationSummaries(): Promise<ConversationSummary[]> {
   return apiFetch(`${config.messagingServiceUrl}/api/conversations`);
 }
 
-export type ConversationSettingsResult = { muted: boolean; disappearingMessageSeconds: number | null };
+export type ConversationSettingsResult = { muted: boolean; disappearingMessageSeconds: number | null; autoDownloadMedia: boolean };
 
-/** The thread's own initial fetch for mute/disappearing state — same endpoint mobile uses. */
+/** The thread's own initial fetch for mute/disappearing/auto-download state — same endpoint mobile uses. */
 export function fetchConversationSettings(conversationId: string): Promise<ConversationSettingsResult> {
   return apiFetch(`${config.messagingServiceUrl}/api/conversations/${conversationId}/settings`);
 }
@@ -125,6 +127,14 @@ export function setDisappearingMessages(conversationId: string, seconds: number 
   return apiFetch(`${config.messagingServiceUrl}/api/conversations/${conversationId}/disappearing`, {
     method: 'PUT',
     body: JSON.stringify({ seconds }),
+  });
+}
+
+/** Per-viewer, per-conversation — see AutoDownloadDisabled's own doc comment backend-side. false gates every image/video (not just multi-item galleries) behind the tap-to-download button. */
+export function setAutoDownloadMedia(conversationId: string, autoDownloadMedia: boolean): Promise<void> {
+  return apiFetch(`${config.messagingServiceUrl}/api/conversations/${conversationId}/auto-download`, {
+    method: 'PUT',
+    body: JSON.stringify({ autoDownloadMedia }),
   });
 }
 

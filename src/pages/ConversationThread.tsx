@@ -121,6 +121,8 @@ export function ConversationThreadPage({
     setMuted,
     disappearingSeconds,
     setDisappearing,
+    autoDownloadMedia,
+    setAutoDownloadMedia,
   } = useConversation({
     conversationId,
     recipientId,
@@ -492,7 +494,7 @@ export function ConversationThreadPage({
       if (mediaFiles.length === 1) {
         const file = mediaFiles[0];
         const objectKey = await uploadMedia(file);
-        sendMessage('', { type: file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE', objectKey }, false, undefined, reply);
+        sendMessage('', { type: file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE', objectKey, fileSize: file.size }, false, undefined, reply);
       }
 
       if (documentFiles.length > 0 || mediaFiles.length === 1) {
@@ -519,7 +521,7 @@ export function ConversationThreadPage({
         }))
       );
       if (uploaded.length === 1) {
-        sendMessage(caption, { type: uploaded[0].type, objectKey: uploaded[0].objectKey, overlayJson: uploaded[0].overlayJson }, false, undefined, reply);
+        sendMessage(caption, { type: uploaded[0].type, objectKey: uploaded[0].objectKey, overlayJson: uploaded[0].overlayJson, fileSize: uploaded[0].fileSize }, false, undefined, reply);
       } else {
         sendMessage(caption, undefined, false, uploaded, reply);
       }
@@ -540,9 +542,9 @@ export function ConversationThreadPage({
     try {
       const objectKey = await uploadMedia(file);
       if (media.kind === 'image') {
-        sendMessage(caption, { type: 'IMAGE', objectKey, overlayJson }, false, undefined, reply);
+        sendMessage(caption, { type: 'IMAGE', objectKey, overlayJson, fileSize: file.size }, false, undefined, reply);
       } else if (media.kind === 'video') {
-        sendMessage(caption, { type: 'VIDEO', objectKey }, false, undefined, reply);
+        sendMessage(caption, { type: 'VIDEO', objectKey, fileSize: file.size }, false, undefined, reply);
       } else {
         sendMessage(caption, { type: 'FILE', objectKey, fileName: media.name }, false, undefined, reply);
       }
@@ -703,6 +705,9 @@ export function ConversationThreadPage({
               <button onClick={() => { setOverflowOpen(false); setInfoPanelView('media'); }}>Media, links, and docs</button>
               <button onClick={() => { setMuted(!muted); setOverflowOpen(false); }}>{muted ? 'Unmute notifications' : 'Mute notifications'}</button>
               <button onClick={() => { setDisappearingPickerOpen(true); setOverflowOpen(false); }}>Disappearing messages</button>
+              <button onClick={() => { setAutoDownloadMedia(!autoDownloadMedia); setOverflowOpen(false); }}>
+                {autoDownloadMedia ? 'Turn off auto-download media' : 'Turn on auto-download media'}
+              </button>
               <button onClick={clearChat}>Clear chat</button>
               {!isGroup && recipientId && (
                 <button
@@ -823,19 +828,20 @@ export function ConversationThreadPage({
                 )}
                 {m.attachments && m.attachments.length > 0 && (
                   <div style={{ marginBottom: m.ciphertext ? 6 : 0 }}>
-                    <MessageAttachmentGrid items={m.attachments} onOpen={(index) => setViewer({ items: m.attachments!, index })} />
+                    <MessageAttachmentGrid items={m.attachments} onOpen={(index) => setViewer({ items: m.attachments!, index })} autoDownloadMedia={autoDownloadMedia} />
                   </div>
                 )}
                 {!m.attachments?.length && m.mediaType === 'IMAGE' && m.mediaObjectKey && (
                   <div style={{ marginBottom: m.ciphertext ? 6 : 0, position: 'relative', width: 'min(260px, 100%)' }}>
                     <MessageAttachmentGrid
-                      items={[{ position: 0, mediaType: 'IMAGE', mediaObjectKey: m.mediaObjectKey, mediaFileName: m.mediaFileName ?? null, mediaDurationMs: null }]}
+                      items={[{ position: 0, mediaType: 'IMAGE', mediaObjectKey: m.mediaObjectKey, mediaFileName: m.mediaFileName ?? null, mediaDurationMs: null, mediaFileSize: m.mediaFileSize ?? null }]}
                       onOpen={(index) =>
                         setViewer({
-                          items: [{ position: 0, mediaType: 'IMAGE', mediaObjectKey: m.mediaObjectKey!, mediaFileName: m.mediaFileName ?? null, mediaDurationMs: null }],
+                          items: [{ position: 0, mediaType: 'IMAGE', mediaObjectKey: m.mediaObjectKey!, mediaFileName: m.mediaFileName ?? null, mediaDurationMs: null, mediaFileSize: m.mediaFileSize ?? null }],
                           index,
                         })
                       }
+                      autoDownloadMedia={autoDownloadMedia}
                     />
                     {m.overlayJson && <OverlayView overlay={parseOverlay(m.overlayJson)!} />}
                   </div>
