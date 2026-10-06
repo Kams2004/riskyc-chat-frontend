@@ -2,7 +2,7 @@ import { config } from '../../lib/config';
 import { apiFetch } from '../../lib/httpClient';
 
 export type MessageStatus = 'SENT' | 'DELIVERED' | 'READ';
-export type MediaType = 'IMAGE' | 'VIDEO' | 'FILE' | 'AUDIO' | 'CALL' | 'STICKER';
+export type MediaType = 'IMAGE' | 'VIDEO' | 'FILE' | 'AUDIO' | 'CALL' | 'STICKER' | 'GROUP_INVITE';
 
 export type AttachmentItem = {
   position: number;
@@ -56,6 +56,12 @@ export type MessageEnvelope = {
   replyToStatusOwnerId?: string | null;
   /** Bytes — single-attachment path's counterpart to AttachmentItem.mediaFileSize, feeds the auto-download-off download gate's size label. Null/absent for a message sent before this field existed. */
   mediaFileSize?: number | null;
+  /** All five null/absent for every message except mediaType='GROUP_INVITE' — see Message.java's own field comments. */
+  inviteGroupId?: string | null;
+  inviteGroupName?: string | null;
+  inviteGroupAvatarObjectKey?: string | null;
+  inviteInvitationId?: number | null;
+  inviteStatus?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | null;
 };
 
 /**
@@ -85,7 +91,16 @@ export function searchInConversation(conversationId: string, query: string): Pro
 }
 
 export type MessageStatusUpdate = { conversationId: string; messageIds: string[]; status: MessageStatus };
-export type MessageMutation = { conversationId: string; messageId: string; ciphertext: string | null; edited: boolean; deleted: boolean; pinned: boolean };
+export type MessageMutation = {
+  conversationId: string;
+  messageId: string;
+  ciphertext: string | null;
+  edited: boolean;
+  deleted: boolean;
+  pinned: boolean;
+  /** Null for every ordinary edit/delete/pin — set only when a GROUP_INVITE card's status changes. */
+  inviteStatus?: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | null;
+};
 export type MessageEditRequest = { conversationId: string; messageId: string; newCiphertext: string };
 export type MessageDeleteRequest = { conversationId: string; messageId: string; scope: 'EVERYONE' | 'ME' };
 /** Any participant, not just the sender — pin is a per-conversation bookmark, not an authorship right. */

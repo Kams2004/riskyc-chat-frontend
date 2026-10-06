@@ -1343,6 +1343,21 @@ h1.step-title {
   gap: 10px;
 }
 
+/* Same name/status text as .call-overlay-center, but pinned near the top
+   instead of centered — used only when the self-preview is already filling
+   the screen (outgoing video ringing), where a centered block would sit
+   on top of your own face. */
+.call-overlay-self-preview-info {
+  position: absolute;
+  top: 56px;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
 .call-overlay-name {
   font-size: 22px;
   font-weight: 600;
@@ -1532,6 +1547,95 @@ h1.step-title {
 }
 
 .call-log-duration {
+  color: var(--text-muted);
+}
+
+/* ---------- Group invitation card (GROUP_INVITE messages) ---------- */
+
+.invite-card-row {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.invite-card {
+  width: min(320px, 82%);
+  background: var(--tint1);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.invite-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.invite-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.invite-card-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.invite-card-sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.invite-card-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.invite-card-decline,
+.invite-card-accept {
+  border: none;
+  border-radius: 16px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.invite-card-decline {
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.invite-card-accept {
+  background: var(--brand-600);
+  color: #ffffff;
+}
+
+.invite-card-busy {
+  text-align: right;
+  color: var(--text-muted);
+}
+
+.invite-card-status {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.invite-card-status.accepted {
+  color: var(--brand-600);
+}
+
+.invite-card-hint {
+  font-size: 12px;
   color: var(--text-muted);
 }
 

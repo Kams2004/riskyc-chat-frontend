@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useAuth } from '../auth/AuthContext';
 import { config } from '../../lib/config';
 import { playRingtone, stopRingtone } from '../../lib/sounds';
+import { getActiveCallKind, setActiveCallKind } from './activeCallTracker';
 import { CallSignalingSocket, type CallIceCandidate, type CallInvite, type CallType } from './signaling';
 
 // Same STUN-first, self-hosted-TURN-fallback setup as mobile's CallContext
@@ -151,6 +152,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   }, [callState]);
   const [incomingCall, setIncomingCall] = useState<IncomingCallInfo | null>(null);
   const [outgoingCall, setOutgoingCall] = useState<OutgoingCallInfo | null>(null);
+  // The socket.connect() effect below only runs once (deps: [accessToken,
+  // userId]), so its onEnd closure would otherwise always see outgoingCall
+  // as it was at mount time (null) — this ref is what lets the busy-call
+  // alert read the callee's name at the moment the call actually ends.
+  const outgoingCallRef = useRef<OutgoingCallInfo | null>(null);
+  useEffect(() => {
+    outgoingCallRef.current = outgoingCall;
+  }, [outgoingCall]);
   const [callType, setCallType] = useState<CallType | null>(null);
   const callTypeRef = useRef<CallType | null>(null);
   useEffect(() => {
@@ -170,6 +179,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         socketRef.current?.sendUsageReport({ callId, bytesSent, bytesReceived });
       });
     }
+    // Only clear it if THIS call is what claimed it — defensive against a
+    // theoretical race where a group call grabbed it in between.
+    if (getActiveCallKind() === 'oneToOne') setActiveCallKind('none');
     stopRingtone();
     pcRef.current?.close();
     pcRef.current = null;
@@ -266,7 +278,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   const startCall = useCallback(
     async (recipientId: string, recipientName: string, type: CallType) => {
-      if (!socketRef.current || callState !== 'idle') return;
+      // Busy on a group call too — see activeCallTracker.ts's own doc
+      // comment on why this can't just read GroupCallContext's state
+      // directly.
+      if (!socketRef.current || callState !== 'idle' || getActiveCallKind() === 'group') return;
       const callId = `${userId}-${Date.now()}`;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'VIDEO' });
       localStreamRef.current = stream;
@@ -278,6 +293,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       isOffererRef.current = true;
       activeCallIdRef.current = callId;
+      setActiveCallKind('oneToOne');
       setCallType(type);
       setOutgoingCall({ callId, toUserId: recipientId, toUserName: recipientName, type });
       setCallState('outgoing-ringing');
@@ -293,7 +309,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   const acceptIncoming = useCallback(async () => {
     const invite = pendingInviteRef.current;
-    if (!invite || !socketRef.current) return;
+    // getActiveCallKind() === 'group' here would mean a group call started
+    // AFTER this invite started ringing — decline rather than accept into a
+    // tab already busy with another call.
+    if (!invite || !socketRef.current || getActiveCallKind() === 'group') return;
     stopRingtone();
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: invite.type === 'VIDEO' });
@@ -304,6 +323,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
     applyQualityLevel(pc, effectiveQualityRef.current);
     isOffererRef.current = false;
+    setActiveCallKind('oneToOne');
 
     await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: invite.sdpOffer }));
     remoteDescriptionSetRef.current = true;
@@ -366,8 +386,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     socket.connect({
       onInvite: (invite) => {
         if (invite.callId === activeCallIdRef.current) return;
-        if (callStateRef.current !== 'idle') {
-          socket.sendEnd({ callId: invite.callId, reason: 'declined' });
+        // Busy: already on a call — decline immediately, same as a phone.
+        // Covers a group call too (getActiveCallKind() === 'group'): this
+        // tab's own callState stays 'idle' the whole time it's in a group
+        // call, so that alone wouldn't catch it. 'busy', not 'declined' —
+        // the caller should see "they're in another call", not "they
+        // declined", since nobody here actually looked at this invite.
+        if (callStateRef.current !== 'idle' || getActiveCallKind() === 'group') {
+          socket.sendEnd({ callId: invite.callId, reason: 'busy' });
           return;
         }
         pendingInviteRef.current = invite;
@@ -376,6 +402,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setCallType(invite.type);
         setIncomingCall({ callId: invite.callId, fromUserId: invite.fromUserId, type: invite.type });
         setCallState('incoming-ringing');
+        // Claimed from the moment it starts ringing, not just once answered
+        // — closes the narrow window where a group call could otherwise
+        // start/join while this tab is ringing but not yet picked up.
+        setActiveCallKind('oneToOne');
         playRingtone();
       },
       onAnswer: async (answer) => {
@@ -405,6 +435,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       },
       onEnd: (end) => {
         if (end.callId !== activeCallIdRef.current) return;
+        // The callee's device auto-declined because it's already on
+        // another call (see onInvite's busy branch above) — tell the
+        // caller why instead of leaving them to assume it just rang out.
+        if (end.reason === 'busy' && callStateRef.current === 'outgoing-ringing') {
+          const name = outgoingCallRef.current?.toUserName || 'They';
+          window.alert(`${name} is in another call right now.`);
+        }
         resetCallState();
       },
       onRenegotiateOffer: async (offer) => {

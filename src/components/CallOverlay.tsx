@@ -109,6 +109,13 @@ export function CallOverlay() {
   const otherAvatar = incomingCall ? callerAvatar : outgoingAvatar;
   const isVideo = callType === 'VIDEO';
   const showRemoteVideo = isVideo && callState === 'connected' && !!remoteStream;
+  // The callee hasn't answered yet (no remote stream can exist), but the
+  // caller's own camera was already requested back in startCall() before
+  // the invite was even sent (see CallContext.tsx) — showRemoteVideo being
+  // false used to fall straight through to the plain avatar screen the
+  // whole time it rang, making an outgoing video call look identical to a
+  // voice call. Mirrors mobile's CallOverlay.tsx fix for the same bug.
+  const showSelfPreviewFullscreen = isVideo && callState === 'outgoing-ringing' && !!localStream && !isCameraOff;
 
   return (
     <div className="call-overlay">
@@ -134,7 +141,11 @@ export function CallOverlay() {
         </div>
       )}
 
-      {showRemoteVideo && <VideoEl stream={remoteStream} className="call-overlay-remote-video" />}
+      {showRemoteVideo ? (
+        <VideoEl stream={remoteStream} className="call-overlay-remote-video" />
+      ) : showSelfPreviewFullscreen ? (
+        <VideoEl stream={localStream} mirror className="call-overlay-remote-video" />
+      ) : null}
 
       {isVideo && callState === 'connected' && localStream && !isCameraOff && (
         <div className="call-overlay-pip">
@@ -142,7 +153,7 @@ export function CallOverlay() {
         </div>
       )}
 
-      {!showRemoteVideo && (
+      {!showRemoteVideo && !showSelfPreviewFullscreen && (
         <div className="call-overlay-center">
           <Avatar objectKey={otherAvatar} label={otherName || ''} size={110} />
           <div className="call-overlay-name">{otherName}</div>
@@ -151,6 +162,13 @@ export function CallOverlay() {
             {callState === 'outgoing-ringing' && 'Ringing…'}
             {callState === 'connected' && formatDuration(elapsed)}
           </div>
+        </div>
+      )}
+
+      {showSelfPreviewFullscreen && (
+        <div className="call-overlay-self-preview-info">
+          <div className="call-overlay-name">{otherName}</div>
+          <div className="call-overlay-status">Ringing…</div>
         </div>
       )}
 

@@ -26,3 +26,12 @@ export function getGroup(groupId: string): Promise<GroupResult> {
 export function getCommonGroups(otherUserId: string): Promise<GroupResult[]> {
   return apiFetch(`${config.messagingServiceUrl}/api/groups/common/${otherUserId}`);
 }
+
+/** Called from the inline invite card in the inviter/invitee's 1:1 conversation — see ConversationThread.tsx. */
+export function acceptGroupInvitation(invitationId: number): Promise<GroupResult> {
+  return apiFetch(`${config.messagingServiceUrl}/api/groups/invitations/${invitationId}/accept`, { method: 'POST' });
+}
+
+export function declineGroupInvitation(invitationId: number): Promise<void> {
+  return apiFetch(`${config.messagingServiceUrl}/api/groups/invitations/${invitationId}/decline`, { method: 'POST' });
+}

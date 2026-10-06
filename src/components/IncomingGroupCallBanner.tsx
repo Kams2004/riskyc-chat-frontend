@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { useAuth } from '../features/auth/AuthContext';
+import { useCall } from '../features/calls/CallContext';
 import { IncomingGroupCallListener, type GroupCallInviteMessage } from '../features/calls/incomingGroupCallInvite';
 import { useGroupCall } from '../features/calls/GroupCallContext';
 
@@ -12,6 +13,7 @@ import { useGroupCall } from '../features/calls/GroupCallContext';
 export function IncomingGroupCallBanner() {
   const { userId, accessToken } = useAuth();
   const { groupCallState, joinGroupCall } = useGroupCall();
+  const { callState } = useCall();
   const [invite, setInvite] = useState<GroupCallInviteMessage | null>(null);
   const listenerRef = useRef<IncomingGroupCallListener | null>(null);
 
@@ -26,7 +28,9 @@ export function IncomingGroupCallBanner() {
     };
   }, [userId, accessToken]);
 
-  if (!invite || groupCallState !== 'idle') return null;
+  // Busy on a 1:1 call too, not just another group call — don't offer to
+  // join a call this tab can't actually join right now.
+  if (!invite || groupCallState !== 'idle' || callState !== 'idle') return null;
 
   return (
     <div className="incoming-call-banner">

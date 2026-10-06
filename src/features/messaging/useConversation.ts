@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAuth } from '../auth/AuthContext';
+import { acceptGroupInvitation, declineGroupInvitation, type GroupResult } from '../groups/api';
 import * as messagingApi from './api';
 import type { MediaType, MessageEnvelope, ReactionRow } from './api';
 import {
@@ -175,7 +176,14 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
         setMessages((prev) =>
           prev.map((m) =>
             m.messageId === mutation.messageId
-              ? { ...m, ciphertext: mutation.ciphertext ?? m.ciphertext, edited: mutation.edited, deleted: mutation.deleted, pinned: mutation.pinned }
+              ? {
+                  ...m,
+                  ciphertext: mutation.ciphertext ?? m.ciphertext,
+                  edited: mutation.edited,
+                  deleted: mutation.deleted,
+                  pinned: mutation.pinned,
+                  inviteStatus: mutation.inviteStatus ?? m.inviteStatus,
+                }
               : m
           )
         );
@@ -344,6 +352,27 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
     [conversationId]
   );
 
+  /**
+   * Accept/decline from the inline invite card. The invitee is always the
+   * one calling this (see GroupInvitationCard's own canRespond check), so —
+   * same convention as GroupInvitationMessageService not echoing the
+   * mutation back to the acting side — this applies the new status locally
+   * right away rather than waiting on a round trip.
+   */
+  const respondToInvitation = useCallback(
+    async (messageId: string, invitationId: number, accept: boolean): Promise<GroupResult | null> => {
+      if (accept) {
+        const group = await acceptGroupInvitation(invitationId);
+        setMessages((prev) => prev.map((m) => (m.messageId === messageId ? { ...m, inviteStatus: 'ACCEPTED' } : m)));
+        return group;
+      }
+      await declineGroupInvitation(invitationId);
+      setMessages((prev) => prev.map((m) => (m.messageId === messageId ? { ...m, inviteStatus: 'DECLINED' } : m)));
+      return null;
+    },
+    []
+  );
+
   /** Toggling the caller's own emoji on a message — sending the SAME emoji again removes it (see ChatController#react); optimistic local update mirrors what the reaction subscription would echo back. */
   const sendReaction = useCallback(
     (messageId: string, emoji: string) => {
@@ -437,6 +466,7 @@ export function useConversation({ conversationId, recipientId, groupId }: UseCon
     editMessage,
     deleteMessage,
     pinMessage,
+    respondToInvitation,
     typingUserIds,
     notifyTyping,
     reactions,

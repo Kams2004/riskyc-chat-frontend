@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
 import { CallLogRow } from '../components/CallLogRow';
+import { GroupInvitationCard } from '../components/GroupInvitationCard';
 import { FileAttachmentRow } from '../components/FileAttachmentRow';
 import { Icon } from '../components/Icon';
 import { firstUrlIn, LinkPreviewCard } from '../components/LinkPreviewCard';
@@ -113,6 +114,7 @@ export function ConversationThreadPage({
     editMessage,
     deleteMessage,
     pinMessage,
+    respondToInvitation,
     typingUserIds,
     notifyTyping,
     reactions,
@@ -781,6 +783,29 @@ export function ConversationThreadPage({
             );
           }
 
+          if (m.mediaType === 'GROUP_INVITE') {
+            return (
+              <div key={m.messageId} className="invite-card-row" data-message-id={m.messageId}>
+                <GroupInvitationCard
+                  groupName={m.inviteGroupName}
+                  groupAvatarObjectKey={m.inviteGroupAvatarObjectKey}
+                  status={m.inviteStatus}
+                  isMine={isMine}
+                  onAccept={async () => {
+                    if (!m.inviteInvitationId) return;
+                    const group = await respondToInvitation(m.messageId, m.inviteInvitationId, true);
+                    if (group) navigate(`/chats/${group.id}`);
+                  }}
+                  onDecline={async () => {
+                    if (!m.inviteInvitationId) return;
+                    await respondToInvitation(m.messageId, m.inviteInvitationId, false);
+                  }}
+                  onOpen={() => m.inviteGroupId && navigate(`/chats/${m.inviteGroupId}`)}
+                />
+              </div>
+            );
+          }
+
           if (m.mediaType === 'CALL') {
             return (
               <div key={m.messageId} className="call-log-row-wrap" data-message-id={m.messageId}>
@@ -828,7 +853,7 @@ export function ConversationThreadPage({
                 )}
                 {m.attachments && m.attachments.length > 0 && (
                   <div style={{ marginBottom: m.ciphertext ? 6 : 0 }}>
-                    <MessageAttachmentGrid items={m.attachments} onOpen={(index) => setViewer({ items: m.attachments!, index })} autoDownloadMedia={autoDownloadMedia} />
+                    <MessageAttachmentGrid items={m.attachments} onOpen={(index) => setViewer({ items: m.attachments!, index })} autoDownloadMedia={autoDownloadMedia} isMine={isMine} />
                   </div>
                 )}
                 {!m.attachments?.length && m.mediaType === 'IMAGE' && m.mediaObjectKey && (
@@ -842,6 +867,7 @@ export function ConversationThreadPage({
                         })
                       }
                       autoDownloadMedia={autoDownloadMedia}
+                      isMine={isMine}
                     />
                     {m.overlayJson && <OverlayView overlay={parseOverlay(m.overlayJson)!} />}
                   </div>

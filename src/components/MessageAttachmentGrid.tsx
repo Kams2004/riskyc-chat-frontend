@@ -192,12 +192,15 @@ export function MessageAttachmentGrid({
   items,
   onOpen,
   autoDownloadMedia = true,
+  isMine = false,
 }: {
   items: AttachmentItem[];
   onOpen: (index: number) => void;
   autoDownloadMedia?: boolean;
+  /** The download gate never applies to your own just-sent media — ported from mobile's identical fix (MessageImage/MessageVideo/MessageAttachmentGrid in chats/[conversationId].tsx), which had the exact same gap: your own sent photo/video sat behind "tap to download" right after you sent it. */
+  isMine?: boolean;
 }) {
-  const [revealed, setRevealed] = useState(autoDownloadMedia && items.length <= 1);
+  const [revealed, setRevealed] = useState(isMine || (autoDownloadMedia && items.length <= 1));
 
   if (items.length === 0) return null;
   if (revealed) return <GridBody items={items} onOpen={onOpen} />;

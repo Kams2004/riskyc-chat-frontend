@@ -27,15 +27,17 @@ export function CallLogRow({
   const isVideo = callType === 'VIDEO';
   const missed = outcome === 'MISSED';
   const declined = outcome === 'DECLINED';
+  const busy = outcome === 'BUSY';
 
   let label = isVideo ? 'Video call' : 'Voice call';
   if (missed) label = isMine ? `${label} — no answer` : `Missed ${label.toLowerCase()}`;
   else if (declined) label = isMine ? `${label} — declined` : `Declined ${label.toLowerCase()}`;
+  else if (busy) label = isMine ? `${label} — busy` : `${label} — you were on another call`;
 
   return (
     <button
       type="button"
-      className={`call-log-pill ${missed || declined ? 'attention' : ''}`}
+      className={`call-log-pill ${missed || declined || busy ? 'attention' : ''}`}
       onClick={onCallBack}
       disabled={!onCallBack}
     >

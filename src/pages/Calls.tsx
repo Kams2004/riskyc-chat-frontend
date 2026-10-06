@@ -23,6 +23,7 @@ function formatWhen(iso: string): string {
 function statusLabel(row: CallRow): string {
   if (row.status === 'MISSED') return 'Missed';
   if (row.status === 'DECLINED') return 'Declined';
+  if (row.status === 'BUSY') return 'Busy';
   return row.isOutgoing ? 'Outgoing' : 'Incoming';
 }
 
@@ -90,10 +91,10 @@ export function CallsPage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="conversation-row-title">{item.otherName}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={item.status === 'MISSED' ? '#e53935' : 'var(--text-muted)'} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={item.status === 'MISSED' || item.status === 'BUSY' ? '#e53935' : 'var(--text-muted)'} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
                       {item.isOutgoing ? <path d="M7 17L17 7M17 7H9M17 7v8" /> : <path d="M17 7L7 17M7 17h8M7 17V9" />}
                     </svg>
-                    <span style={{ fontSize: 12.5, color: item.status === 'MISSED' ? '#e53935' : 'var(--text-muted)' }}>
+                    <span style={{ fontSize: 12.5, color: item.status === 'MISSED' || item.status === 'BUSY' ? '#e53935' : 'var(--text-muted)' }}>
                       {statusLabel(item)} · {formatWhen(item.startedAt)}
                     </span>
                   </div>
