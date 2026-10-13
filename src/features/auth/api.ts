@@ -31,10 +31,18 @@ export type VerifyOtpResponse = {
   phoneNumber: string | null;
 };
 
+/**
+ * Thrown as an ApiError with status 403 and this shape in `body` when the
+ * account already has the maximum number of linked devices — see
+ * AuthController.DeviceLimitError. The master device must remove one
+ * (features/sessions/api.ts's revokeSession) before another can sign in.
+ */
+export type DeviceLimitErrorBody = { reason: 'DEVICE_LIMIT_REACHED'; maxLinkedDevices: number };
+
 // platform: 'web' (as opposed to mobile's 'mobile') is purely for the
-// Session table's own record-keeping — web is deliberately exempt from
-// auth-service's one-active-mobile-session-per-account rule either way, see
-// AuthController.OtpVerifyRequest's own doc comment.
+// Session table's own record-keeping — phones, tablets, and web sessions
+// all share one device cap regardless of platform value (see
+// AuthController#verifyOtp).
 export function verifyOtp(identifier: Identifier, code: string, deviceLabel?: string | null): Promise<VerifyOtpResponse> {
   return apiFetch(`${config.authServiceUrl}/api/auth/otp/verify`, {
     method: 'POST',

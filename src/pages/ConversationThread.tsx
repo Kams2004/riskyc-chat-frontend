@@ -48,6 +48,7 @@ import { searchInConversation, type AttachmentItem, type MessageEnvelope, type S
 import { useConversation, type ReplyToDraft } from '../features/messaging/useConversation';
 import { useConversationList } from '../features/messaging/useConversationList';
 import { uploadMedia } from '../features/media/api';
+import { compressImageForSend, exceedsMediaSizeLimit } from '../lib/mediaCompression';
 import { parseOverlay } from '../lib/overlay';
 import { blockUser, getUser, reportUser } from '../features/users/api';
 import { getGroup } from '../features/groups/api';
@@ -445,9 +446,25 @@ export function ConversationThreadPage({
   }
 
   async function handleFilesPicked(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
+    const picked = Array.from(e.target.files ?? []);
     e.target.value = ''; // allow picking the same file again later
-    if (files.length === 0) return;
+    if (picked.length === 0) return;
+
+    const withinLimit = picked.filter((f) => !exceedsMediaSizeLimit(f.size));
+    if (withinLimit.length < picked.length) {
+      window.alert(
+        withinLimit.length === 0
+          ? 'This file is larger than 200 MB and cannot be sent.'
+          : 'One or more files were larger than 200 MB and were left out.'
+      );
+    }
+    if (withinLimit.length === 0) return;
+
+    // Resize+recompress every image before it reaches the preview/upload
+    // step — videos aren't compressed (no transcoding available in the
+    // browser without a much heavier dependency like ffmpeg.wasm), just
+    // capped above by size.
+    const files = await Promise.all(withinLimit.map((f) => compressImageForSend(f)));
 
     // A single picked file (image, video, or document) gets a WhatsApp-style
     // preview-with-caption step before anything uploads — see

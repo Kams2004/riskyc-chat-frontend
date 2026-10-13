@@ -237,6 +237,15 @@ export function GroupCallProvider({ children }: { children: React.ReactNode }) {
               if (!peerId) return;
               upsertParticipant(peerId, { audioTrack: null });
             },
+            // This account's OTHER device/tab just joined this same call,
+            // stealing this connection's slot (see protooServer.ts) — the
+            // underlying WS closes right after this arrives, which would
+            // otherwise just look like an ordinary dropped connection via
+            // onDisconnected below.
+            onJoinedElsewhere: () => {
+              console.log('[GroupCallContext] joined this call from another device');
+              resetState();
+            },
           },
           resolve,
           (reason) => {

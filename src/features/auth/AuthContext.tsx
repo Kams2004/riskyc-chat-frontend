@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 
 import { session, type StoredSession } from '../../lib/authStorage';
 import { currentDeviceLabel } from '../../lib/deviceLabel';
@@ -14,6 +14,8 @@ type AuthState = {
   avatarObjectKey: string | null;
   email: string | null;
   phoneNumber: string | null;
+  /** Whether THIS tab/browser is the account's master device — see SessionResult.isMaster's own doc comment. Defaults to false until the sessions list resolves. */
+  isMaster: boolean;
   signInWithOtp: (identifier: Identifier, code: string) => Promise<{ isNewAccount: boolean }>;
   /** Applies a token response obtained without OTP verification — currently only the system-account access identifier's /otp/request short-circuit (see requestOtp's doc comment). */
   completeSystemLogin: (res: VerifyOtpResponse) => void;
@@ -25,6 +27,21 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [stored, setStored] = useState<StoredSession | null>(() => session.load());
+  const [isMaster, setIsMaster] = useState(false);
+
+  // Best-effort — a failed fetch just leaves isMaster at its previous value
+  // (false by default), which only ever hides a master-only action a real
+  // master could have used; it never grants one to a non-master device.
+  function refreshIsMaster() {
+    listSessions()
+      .then((sessions) => setIsMaster(sessions.find((s) => s.isCurrent)?.isMaster ?? false))
+      .catch((e) => console.warn('[AuthContext] failed to refresh master-device status', e));
+  }
+
+  useEffect(() => {
+    if (stored?.accessToken) refreshIsMaster();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function applySession(res: VerifyOtpResponse) {
     const next: StoredSession = {
@@ -37,6 +54,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
     session.save(next);
     setStored(next);
+    refreshIsMaster();
   }
 
   const value = useMemo<AuthState>(
@@ -48,6 +66,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       avatarObjectKey: stored?.avatarObjectKey ?? null,
       email: stored?.email ?? null,
       phoneNumber: stored?.phoneNumber ?? null,
+      isMaster,
       async signInWithOtp(identifier, code) {
         const res = await authApi.verifyOtp(identifier, code, currentDeviceLabel());
         applySession(res);
@@ -80,6 +99,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         // still a real hygiene gap: the "Logged-in devices" screen's own
         // purpose is to let you revoke sessions, and a signed-out session's
         // token otherwise stays valid indefinitely).
+        // If this IS the master device, the server cascades: every other
+        // linked device gets signed out too (see SessionController#revoke)
+        // — by design, not a bug, see Session.isMaster's own doc comment.
         listSessions()
           .then((sessions) => {
             const current = sessions.find((s) => s.isCurrent);
@@ -88,9 +110,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
           .catch((e) => console.warn('[signOut] failed to revoke current session', e));
         session.clear();
         setStored(null);
+        setIsMaster(false);
       },
     }),
-    [stored]
+    [stored, isMaster]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

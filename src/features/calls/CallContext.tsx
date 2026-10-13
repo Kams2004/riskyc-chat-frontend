@@ -6,6 +6,13 @@ import { playRingtone, stopRingtone } from '../../lib/sounds';
 import { getActiveCallKind, setActiveCallKind } from './activeCallTracker';
 import { CallSignalingSocket, type CallIceCandidate, type CallInvite, type CallType } from './signaling';
 
+// One random id per browser tab lifetime — not tied to the real auth Session
+// (jti), purely so this tab can recognize its own invite/answer/end messages
+// echoed back to it when the same account is signed into multiple
+// devices/tabs at once (see onEnd's "answered-elsewhere" branch below).
+// Never used for anything security-relevant.
+const deviceSessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 // Same STUN-first, self-hosted-TURN-fallback setup as mobile's CallContext
 // and web's own groupCallSignaling — turnServerUrl/turnUsername/turnCredential
 // already exist in lib/config.ts from the group-calling work.
@@ -302,7 +309,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      socketRef.current.sendInvite({ callId, toUserId: recipientId, type, sdpOffer: offer.sdp ?? '', callerName: displayName });
+      socketRef.current.sendInvite({
+        callId,
+        toUserId: recipientId,
+        type,
+        sdpOffer: offer.sdp ?? '',
+        callerName: displayName,
+        fromDeviceId: deviceSessionId,
+      });
     },
     [callState, createPeerConnection, displayName, userId]
   );
@@ -332,7 +346,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
-    socketRef.current.sendAnswer({ callId: invite.callId, sdpAnswer: answer.sdp ?? '' });
+    socketRef.current.sendAnswer({ callId: invite.callId, sdpAnswer: answer.sdp ?? '', fromDeviceId: deviceSessionId });
     setIncomingCall(null);
     setCallState('connected');
     setConnectedAt(Date.now());
@@ -435,6 +449,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       },
       onEnd: (end) => {
         if (end.callId !== activeCallIdRef.current) return;
+        // Sent to the CALLEE's own user destination the moment one of their
+        // devices/tabs answers (see backend CallController#answer) — reaches
+        // every device of this account, including the one that just
+        // answered itself. That one recognizes its own fromDeviceId here
+        // and ignores it; every sibling tab/device silently stops ringing —
+        // no alert, this isn't a rejection, another of the user's own
+        // devices just picked up.
+        if (end.reason === 'answered-elsewhere') {
+          if (end.fromDeviceId === deviceSessionId) return;
+          resetCallState();
+          return;
+        }
         // The callee's device auto-declined because it's already on
         // another call (see onInvite's busy branch above) — tell the
         // caller why instead of leaving them to assume it just rang out.

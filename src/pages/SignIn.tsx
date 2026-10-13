@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Icon } from '../components/Icon';
+import { ProgressBar } from '../components/ProgressBar';
 import * as authApi from '../features/auth/api';
 import { useAuth } from '../features/auth/AuthContext';
 import type { VerifyOtpResponse } from '../features/auth/api';
@@ -84,7 +85,7 @@ function QrPanel({ onSignedIn }: { onSignedIn: (res: VerifyOtpResponse) => void 
         ) : token ? (
           <QRCodeSVG value={`riskycchat://pair/${token}`} size={220} level="M" />
         ) : (
-          <span className="spinner" aria-hidden="true" />
+          <ProgressBar active label="Preparing QR code…" />
         )}
       </div>
       <ol className="qr-steps">
@@ -216,7 +217,18 @@ export function SignInPage() {
     } catch (e) {
       // ApiError.message is a raw "Request to <url> failed: <status> <body>"
       // diagnostic string, not something to show a user — a 401 here just
-      // means the code was wrong or expired.
+      // means the code was wrong or expired; a 403 with this reason means
+      // the account is already at its linked-device cap.
+      if (e instanceof ApiError && e.status === 403) {
+        const body = e.body as { reason?: string; maxLinkedDevices?: number } | undefined;
+        if (body?.reason === 'DEVICE_LIMIT_REACHED') {
+          setVerifyError(
+            `You've reached the maximum of ${body.maxLinkedDevices} linked devices for this account. Ask the primary device to remove one, then try again.`
+          );
+          setIsVerifying(false);
+          return;
+        }
+      }
       setVerifyError(e instanceof ApiError && e.status === 401 ? 'Incorrect or expired code — please try again.' : 'Something went wrong. Please try again.');
     } finally {
       setIsVerifying(false);
@@ -342,6 +354,11 @@ export function SignInPage() {
               <button type="submit" className="button" disabled={code.length !== CODE_LENGTH || isVerifying}>
                 {isVerifying ? <span className="spinner" aria-hidden="true" /> : <span>Verify</span>}
               </button>
+              {isVerifying && (
+                <div style={{ marginTop: 16 }}>
+                  <ProgressBar active label="Verifying…" />
+                </div>
+              )}
 
               {!smsTrialLimitReached ? (
                 <>

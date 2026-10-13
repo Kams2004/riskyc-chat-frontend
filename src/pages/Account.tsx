@@ -5,10 +5,11 @@ import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { useAuth } from '../features/auth/AuthContext';
 import { deleteMyAccount, getUser } from '../features/users/api';
+import { ApiError } from '../lib/httpClient';
 import { maskIdentifier } from '../lib/mask';
 
 export function AccountPage() {
-  const { userId, signOut } = useAuth();
+  const { userId, isMaster, signOut } = useAuth();
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState<string | null>(null);
   const [identifierMode, setIdentifierMode] = useState<'phone' | 'email'>('email');
@@ -31,7 +32,15 @@ export function AccountPage() {
       signOut();
       navigate('/', { replace: true });
     } catch (e) {
-      window.alert('Could not delete account — please check your connection and try again.');
+      // Defense in depth — the button below is already hidden for a
+      // non-master device, but the server is the real enforcement (see
+      // UserController#deleteMe), so a 403 here still needs a clear message
+      // rather than the generic connection-error one.
+      if (e instanceof ApiError && e.status === 403) {
+        window.alert("Only the primary device — the one you originally verified this account on — can delete the account.");
+      } else {
+        window.alert('Could not delete account — please check your connection and try again.');
+      }
       setIsDeleting(false);
     }
   }
@@ -51,9 +60,13 @@ export function AccountPage() {
         </button>
       </div>
 
-      <button className="link-button" style={{ color: 'var(--error)', marginTop: 24 }} onClick={handleDelete} disabled={isDeleting}>
-        {isDeleting ? 'Deleting…' : 'Delete account'}
-      </button>
+      {isMaster ? (
+        <button className="link-button" style={{ color: 'var(--error)', marginTop: 24 }} onClick={handleDelete} disabled={isDeleting}>
+          {isDeleting ? 'Deleting…' : 'Delete account'}
+        </button>
+      ) : (
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 24 }}>Only the primary device can delete the account.</p>
+      )}
     </div>
   );
 }

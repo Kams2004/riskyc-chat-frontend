@@ -19,7 +19,14 @@ export function IncomingGroupCallBanner() {
 
   useEffect(() => {
     if (!userId || !accessToken) return;
-    const listener = new IncomingGroupCallListener(accessToken, (msg) => setInvite(msg));
+    const listener = new IncomingGroupCallListener(
+      accessToken,
+      (msg) => setInvite(msg),
+      // This account's own first device just joined this call — dismiss
+      // the banner here rather than keep offering to join a call this
+      // account is already in on another device/tab.
+      (data) => setInvite((current) => (current?.groupId === data.groupId ? null : current))
+    );
     listenerRef.current = listener;
     listener.connect();
     return () => {

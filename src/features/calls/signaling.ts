@@ -11,8 +11,10 @@ export type CallInvite = {
   type: CallType;
   sdpOffer: string;
   callerName?: string | null;
+  /** This device's own ephemeral session id — see CallContext's deviceSessionId. Lets a sibling device of the same account tell its own messages apart from one answered elsewhere. */
+  fromDeviceId?: string | null;
 };
-export type CallAnswer = { callId: string; fromUserId: string; sdpAnswer: string };
+export type CallAnswer = { callId: string; fromUserId: string; sdpAnswer: string; fromDeviceId?: string | null };
 export type CallIceCandidate = {
   callId: string;
   fromUserId: string;
@@ -20,7 +22,8 @@ export type CallIceCandidate = {
   sdpMid: string | null;
   sdpMLineIndex: number | null;
 };
-export type CallEnd = { callId: string; fromUserId: string; reason: string };
+/** reason includes the server-synthesized "answered-elsewhere" (see CallContext's onEnd) alongside the usual client-originated ones. */
+export type CallEnd = { callId: string; fromUserId: string; reason: string; fromDeviceId?: string | null };
 export type CallRenegotiateOffer = { callId: string; fromUserId: string; sdpOffer: string };
 export type CallUsageReport = { callId: string; bytesSent: number; bytesReceived: number };
 
