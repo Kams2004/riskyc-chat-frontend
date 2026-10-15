@@ -265,6 +265,24 @@ h1.step-title {
   color: var(--text-primary);
 }
 
+.qr-manual-code {
+  width: 100%;
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1.5px solid var(--hairline);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.qr-manual-code strong {
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+
 .link-button {
   display: block;
   width: 100%;

@@ -29,6 +29,7 @@ const PAIRING_REFRESH_MS = 2 * 60 * 1000 + 30 * 1000;
 /** WhatsApp-Web-style QR device linking — see auth-service's PairingController. Polls until the already-signed-in mobile app scans and approves this code, then signs in exactly like the OTP flow's system-account instant-login case (same completeSystemLogin call, same shaped response). */
 function QrPanel({ onSignedIn }: { onSignedIn: (res: VerifyOtpResponse) => void }) {
   const [token, setToken] = useState<string | null>(null);
+  const [code, setCode] = useState<string | null>(null);
   const [errored, setErrored] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const refreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,8 +44,9 @@ function QrPanel({ onSignedIn }: { onSignedIn: (res: VerifyOtpResponse) => void 
     clearTimers();
     setErrored(false);
     try {
-      const { token: newToken } = await authApi.startPairing(currentDeviceLabel());
+      const { token: newToken, code: newCode } = await authApi.startPairing(currentDeviceLabel());
       setToken(newToken);
+      setCode(newCode);
 
       pollRef.current = setInterval(async () => {
         if (signedInRef.current) return;
@@ -95,6 +97,11 @@ function QrPanel({ onSignedIn }: { onSignedIn: (res: VerifyOtpResponse) => void 
         </li>
         <li>Point your phone at this screen to scan the code</li>
       </ol>
+      {code && (
+        <p className="qr-manual-code">
+          Camera not working? On your phone, tap <strong>Enter code manually</strong> and type: <strong>{code.slice(0, 4)}-{code.slice(4)}</strong>
+        </p>
+      )}
     </div>
   );
 }
