@@ -21,10 +21,13 @@ const PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
 const RESEND_COOLDOWN_SECONDS = 45;
 const CODE_LENGTH = 6;
 const PAIRING_POLL_MS = 1500;
-// A little under auth-service's own 3-minute PENDING TTL (PairingService),
-// so a fresh QR is always requested before the current one could actually
-// expire server-side — the user should never be staring at a dead code.
-const PAIRING_REFRESH_MS = 2 * 60 * 1000 + 30 * 1000;
+// A floor so a pathologically small server-configured TTL can't cause a
+// refresh-thrash loop.
+const PAIRING_MIN_REFRESH_MS = 20 * 1000;
+// Seconds of safety margin subtracted from the server's own expiresInSeconds
+// (riskyc.pairing.pending-ttl-seconds) — refreshes a little early so the
+// displayed QR is never seen going dead mid-scan.
+const PAIRING_REFRESH_MARGIN_SECONDS = 10;
 
 /** WhatsApp-Web-style QR device linking — see auth-service's PairingController. Polls until the already-signed-in mobile app scans and approves this code, then signs in exactly like the OTP flow's system-account instant-login case (same completeSystemLogin call, same shaped response). */
 function QrPanel({ onSignedIn }: { onSignedIn: (res: VerifyOtpResponse) => void }) {
@@ -44,7 +47,7 @@ function QrPanel({ onSignedIn }: { onSignedIn: (res: VerifyOtpResponse) => void 
     clearTimers();
     setErrored(false);
     try {
-      const { token: newToken, code: newCode } = await authApi.startPairing(currentDeviceLabel());
+      const { token: newToken, code: newCode, expiresInSeconds } = await authApi.startPairing(currentDeviceLabel());
       setToken(newToken);
       setCode(newCode);
 
@@ -65,7 +68,8 @@ function QrPanel({ onSignedIn }: { onSignedIn: (res: VerifyOtpResponse) => void 
         }
       }, PAIRING_POLL_MS);
 
-      refreshRef.current = setTimeout(startPairing, PAIRING_REFRESH_MS);
+      const refreshMs = Math.max(PAIRING_MIN_REFRESH_MS, (expiresInSeconds - PAIRING_REFRESH_MARGIN_SECONDS) * 1000);
+      refreshRef.current = setTimeout(startPairing, refreshMs);
     } catch {
       setErrored(true);
     }
