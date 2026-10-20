@@ -6,6 +6,7 @@
 # somewhere else with a different set of ports already taken.
 services:
   web:
+    restart: unless-stopped
     build: .
     ports:
       - "${WEB_HOST_PORT:-8085}:80"
