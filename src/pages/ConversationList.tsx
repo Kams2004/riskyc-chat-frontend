@@ -12,7 +12,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { useConversationList, type ConversationListItem } from '../features/messaging/useConversationList';
 import { useInboxSocket } from '../features/messaging/useInboxSocket';
 import type { ReplyToDraft } from '../features/messaging/useConversation';
-import { isFavorite, isUnread, toggleFavorite } from '../lib/conversationPrefs';
+import { isFavorite, isUnread, markConversationViewed, toggleFavorite } from '../lib/conversationPrefs';
 import { ConversationThreadPage } from './ConversationThread';
 
 type ListFilter = 'all' | 'unread' | 'favorites' | 'groups';
@@ -49,10 +49,22 @@ function formatListTime(iso: string): string {
 export function ConversationListPage() {
   const { userId, accessToken, displayName, avatarObjectKey } = useAuth();
   const { conversations, isLoading, reload } = useConversationList(userId);
+  // Bumped whenever a read-state event clears a conversation's unread dot
+  // via localStorage (see below) — isUnread() reads localStorage directly,
+  // so nothing re-renders this list on its own without this.
+  const [readStateTick, setReadStateTick] = useState(0);
   // Keeps the list itself live for messages arriving in any conversation,
   // not just the one currently open (which handles its own live updates via
   // ConversationThread's own subscription) — see useInboxSocket's comment.
-  useInboxSocket(accessToken, reload);
+  // The read-state callback is this account's OWN read status changing on
+  // another linked device (mobile or another web tab/session) — only a
+  // READ status should clear the unread dot here; DELIVERED doesn't mean
+  // the conversation was actually opened anywhere.
+  useInboxSocket(accessToken, reload, (update) => {
+    if (update.status !== 'READ') return;
+    markConversationViewed(update.conversationId);
+    setReadStateTick((v) => v + 1);
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const { conversationId } = useParams<{ conversationId?: string }>();
@@ -76,7 +88,7 @@ export function ConversationListPage() {
     else if (filter === 'groups') list = list.filter((c) => c.isGroup);
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, query, filter, favoritesTick]);
+  }, [conversations, query, filter, favoritesTick, readStateTick]);
 
   function handleToggleFavorite(e: React.MouseEvent, c: ConversationListItem) {
     e.stopPropagation();

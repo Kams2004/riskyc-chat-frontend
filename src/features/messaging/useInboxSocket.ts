@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 
+import type { GroupReceiptUpdate, MessageStatusUpdate } from './api';
 import { ChatSocket } from './ws';
 
 /**
@@ -10,16 +11,29 @@ import { ChatSocket } from './ws';
  * reload. This just needs to trigger `onMessage` (the list's own `reload`)
  * for every /user/queue/messages frame; the thread screen's own
  * subscribeToConversation already handles the open-thread case separately.
+ *
+ * Also mirrors this account's own read state across its other sessions —
+ * see ChatController#ack/#ackGroup/#syncRead — so marking a conversation
+ * read on one linked device (mobile or another web tab) clears this
+ * device's unread dot too, instead of only on its own next visit to that
+ * thread.
  */
-export function useInboxSocket(accessToken: string | null, onMessage: () => void) {
+export function useInboxSocket(
+  accessToken: string | null,
+  onMessage: () => void,
+  onReadState?: (update: MessageStatusUpdate | GroupReceiptUpdate) => void
+) {
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
+  const onReadStateRef = useRef(onReadState);
+  onReadStateRef.current = onReadState;
 
   useEffect(() => {
     if (!accessToken) return;
     const socket = new ChatSocket(accessToken);
     socket.connect(() => {
       socket.subscribeToUserQueue(() => onMessageRef.current());
+      socket.subscribeToUserReadState((update) => onReadStateRef.current?.(update));
     });
     return () => socket.disconnect();
   }, [accessToken]);
