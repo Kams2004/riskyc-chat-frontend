@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type PropsWith
 
 import { session, type StoredSession } from '../../lib/authStorage';
 import { currentDeviceLabel } from '../../lib/deviceLabel';
+import { SESSION_REVOKED_EVENT } from '../../lib/httpClient';
 import { listSessions, revokeSession } from '../sessions/api';
 import * as authApi from './api';
 import type { Identifier, VerifyOtpResponse } from './api';
@@ -41,6 +42,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (stored?.accessToken) refreshIsMaster();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // This tab's own session was revoked server-side (see httpClient.ts's
+  // SESSION_REVOKED_EVENT doc comment) — clear local state directly rather
+  // than calling the full signOut() below: that one makes its own
+  // authenticated request (revoke), which would also 401 against an
+  // already-dead token and re-fire this same event, looping forever. No
+  // server call here is correct anyway — there's nothing left to revoke.
+  useEffect(() => {
+    function onSessionRevoked() {
+      session.clear();
+      setStored(null);
+      setIsMaster(false);
+    }
+    window.addEventListener(SESSION_REVOKED_EVENT, onSessionRevoked);
+    return () => window.removeEventListener(SESSION_REVOKED_EVENT, onSessionRevoked);
   }, []);
 
   function applySession(res: VerifyOtpResponse) {

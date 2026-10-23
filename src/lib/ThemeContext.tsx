@@ -21,7 +21,12 @@ function readStoredPreference(): ThemePreference {
   } catch {
     // Storage may be unavailable (private mode, disabled cookies) — fall through to the default.
   }
-  return 'system';
+  // Defaults to light, not the OS/browser's own setting — a machine with
+  // dark mode on would otherwise show this app in dark mode before anyone
+  // ever chose a theme here. "System" is still a selectable preference in
+  // Settings for anyone who wants it; this only changes what a never-set
+  // preference resolves to.
+  return 'light';
 }
 
 export function ThemeProvider({ children }: PropsWithChildren) {
