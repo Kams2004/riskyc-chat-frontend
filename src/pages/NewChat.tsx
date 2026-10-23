@@ -8,6 +8,7 @@ import { Spinner } from '../components/Spinner';
 import { conversationIdFor } from '../features/messaging/conversationId';
 import { lookupByPhone, searchUsers, type UserResult } from '../features/users/api';
 import { useAuth } from '../features/auth/AuthContext';
+import { COUNTRIES, type Country } from '../lib/countries';
 
 /** True when the string looks like a phone number the user typed (not a name/email). */
 function looksLikePhoneQuery(q: string): boolean {
@@ -54,6 +55,12 @@ export function NewChatPage() {
   const [results, setResults] = useState<UserResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [phoneLookup, setPhoneLookup] = useState<PhoneLookupState>({ kind: 'idle' });
+  // Same default/role as mobile's new.tsx searchCountry — a bare local
+  // number (no leading '+') gets this dial code prepended before lookup,
+  // since the backend matches the full internationally-formatted number
+  // exactly. Was missing entirely on web: a typed "650111222" would never
+  // match a real "+237650111222" account.
+  const [searchCountry, setSearchCountry] = useState<Country>(COUNTRIES[0]);
   const lookupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isPhoneMode = looksLikePhoneQuery(query.trim());
@@ -67,7 +74,8 @@ export function NewChatPage() {
       setPhoneLookup({ kind: 'idle' });
       return;
     }
-    const norm = normalizePhone(q);
+    const normDigits = normalizePhone(q);
+    const norm = normDigits.startsWith('+') ? normDigits : `${searchCountry.dialCode}${normDigits}`;
     setPhoneLookup({ kind: 'loading' });
     if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
     lookupTimerRef.current = setTimeout(async () => {
@@ -81,7 +89,7 @@ export function NewChatPage() {
     return () => {
       if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
     };
-  }, [query]);
+  }, [query, searchCountry]);
 
   async function runSearch(q: string) {
     setQuery(q);
@@ -98,7 +106,7 @@ export function NewChatPage() {
     if (!userId) return;
     const conversationId = conversationIdFor(userId, user.userId);
     navigate(`/chats/${conversationId}`, {
-      state: { title: user.displayName || user.email || user.phoneNumber || 'Chat', avatarObjectKey: user.avatarObjectKey, recipientId: user.userId },
+      state: { title: user.displayName || user.phoneNumber || user.email || 'Chat', avatarObjectKey: user.avatarObjectKey, recipientId: user.userId },
     });
   }
 
@@ -136,6 +144,23 @@ export function NewChatPage() {
 
       {isPhoneMode ? (
         <div style={{ marginTop: 12 }}>
+          {/* Only matters for a bare local number with no leading '+' — see the lookup effect above. */}
+          <label style={{ display: 'block', marginBottom: 10 }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 12.5, marginRight: 6 }}>Country:</span>
+            <select
+              className="input"
+              style={{ width: 'auto', display: 'inline-block' }}
+              aria-label="Country"
+              value={searchCountry.dialCode}
+              onChange={(e) => setSearchCountry(COUNTRIES.find((c) => c.dialCode === e.target.value) ?? COUNTRIES[0])}
+            >
+              {COUNTRIES.map((c) => (
+                <option key={`${c.name}-${c.dialCode}`} value={c.dialCode}>
+                  {c.name} ({c.dialCode})
+                </option>
+              ))}
+            </select>
+          </label>
           {phoneLookup.kind === 'loading' && (
             <div className="loading-center" style={{ padding: 20 }}>
               <Spinner size={28} />
@@ -170,8 +195,8 @@ export function NewChatPage() {
           {isSearching && <p style={{ color: 'var(--text-muted)' }}>Searching…</p>}
           {results.map((u) => (
             <div key={u.userId} className="conversation-row" style={{ borderRadius: 10 }} onClick={() => openChatWith(u)}>
-              <Avatar label={u.displayName || u.email || u.phoneNumber || '?'} objectKey={u.avatarObjectKey} size={40} />
-              <div className="conversation-row-title">{u.displayName || u.email || u.phoneNumber}</div>
+              <Avatar label={u.displayName || u.phoneNumber || u.email || '?'} objectKey={u.avatarObjectKey} size={40} />
+              <div className="conversation-row-title">{u.displayName || u.phoneNumber || u.email}</div>
             </div>
           ))}
         </div>

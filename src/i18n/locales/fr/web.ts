@@ -19,7 +19,7 @@ export default {
   emptyState: {
     title: 'RiskyC Chat pour le web',
     body: 'Envoyez et recevez des messages sans garder votre téléphone connecté.',
-    hint: 'Utilisez RiskyC Chat sur jusqu’à 4 appareils liés et 1 téléphone en même temps.',
+    hint: 'Utilisez RiskyC Chat sur jusqu’à 20 appareils liés en même temps.',
     newChat: 'Nouvelle discussion',
   },
   threadSearch: {

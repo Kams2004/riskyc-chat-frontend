@@ -32,7 +32,9 @@ export function DevicesPage() {
 
   useEffect(load, []);
 
-  const myIsMaster = sessions.find((s) => s.isCurrent)?.isMaster ?? false;
+  const activeSessions = sessions.filter((s) => !s.revoked);
+  const revokedSessions = sessions.filter((s) => s.revoked);
+  const myIsMaster = activeSessions.find((s) => s.isCurrent)?.isMaster ?? false;
 
   async function handleRevoke(item: SessionResult) {
     const cascadeWarning = item.isCurrent && item.isMaster;
@@ -66,19 +68,19 @@ export function DevicesPage() {
       </button>
       <h1>Logged-in devices</h1>
 
-      {maxLinkedDevices != null && sessions.length > 0 && (
+      {maxLinkedDevices != null && activeSessions.length > 0 && (
         <p style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>
-          {sessions.length} of {maxLinkedDevices} devices linked
+          {activeSessions.length} of {maxLinkedDevices} devices linked
         </p>
       )}
-      {!myIsMaster && sessions.length > 1 && (
-        <p style={{ color: 'var(--text-muted)', fontSize: 12.5, marginTop: 2 }}>Only the primary device can remove other devices.</p>
+      {!myIsMaster && activeSessions.length > 1 && (
+        <p style={{ color: 'var(--text-muted)', fontSize: 12.5, marginTop: 2 }}>Only the primary device can link or remove other devices.</p>
       )}
 
       {isLoading && sessions.length === 0 && <div className="loading-center"><Spinner /></div>}
-      {!isLoading && sessions.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No active sessions.</p>}
+      {!isLoading && activeSessions.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No active sessions.</p>}
 
-      {sessions.map((item) => {
+      {activeSessions.map((item) => {
         // Any device may always sign ITSELF out. Removing an OTHER device is
         // master-only — a non-master viewer sees no action on other rows.
         const canRevoke = item.isCurrent || myIsMaster;
@@ -100,6 +102,22 @@ export function DevicesPage() {
           </div>
         );
       })}
+
+      {revokedSessions.length > 0 && (
+        <>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, marginTop: 24, marginBottom: 4 }}>Recently signed out</p>
+          {revokedSessions.map((item) => (
+            <div key={item.id} className="settings-row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <p className="settings-row-value" style={{ margin: 0, color: 'var(--text-muted)' }}>{item.deviceLabel || 'Unknown device'}</p>
+                <p style={{ margin: '2px 0 0', fontSize: 12.5, color: 'var(--text-muted)' }}>
+                  {item.revokedAt ? `Signed out ${formatWhen(item.revokedAt)}` : ''}
+                </p>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

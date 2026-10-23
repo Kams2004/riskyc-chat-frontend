@@ -8,6 +8,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import * as authApi from '../features/auth/api';
 import { useAuth } from '../features/auth/AuthContext';
 import type { VerifyOtpResponse } from '../features/auth/api';
+import { COUNTRIES, type Country } from '../lib/countries';
 import { currentDeviceLabel } from '../lib/deviceLabel';
 import { maskIdentifier } from '../lib/mask';
 import { ApiError } from '../lib/httpClient';
@@ -118,6 +119,11 @@ export function SignInPage() {
   const [view, setView] = useState<View>('qr');
   const [mode, setMode] = useState<Mode>('phone');
   const [step, setStep] = useState<Step>('identifier');
+  // Same default as mobile's login.tsx (COUNTRIES[0]) — a bare local number
+  // with no leading '+' otherwise has no way to resolve to a full
+  // internationally-formatted account (was the actual pre-existing bug
+  // here: this page had no country picker at all, unlike mobile).
+  const [country, setCountry] = useState<Country>(COUNTRIES[0]);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState(''); // honeypot
@@ -132,7 +138,9 @@ export function SignInPage() {
   const [doneMessage, setDoneMessage] = useState('');
   const codeInputRef = useRef<HTMLInputElement>(null);
 
-  const value = mode === 'phone' ? phone : email;
+  // Mirrors mobile login.tsx's fullPhone: the dial code is prepended here,
+  // not typed by the user, so `phone` itself only ever holds the local part.
+  const value = mode === 'phone' ? `${country.dialCode}${phone.replace(/\s/g, '')}` : email;
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -304,14 +312,30 @@ export function SignInPage() {
 
             <form onSubmit={handleSubmitIdentifier} noValidate>
               {mode === 'phone' ? (
-                <input
-                  type="tel"
-                  className="input"
-                  placeholder="+237 6XX XXX XXX"
-                  autoComplete="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
+                <div className="phone-row" style={{ display: 'flex', gap: 8 }}>
+                  <select
+                    className="input"
+                    style={{ flex: '0 0 auto', width: 'auto', maxWidth: 180 }}
+                    aria-label="Country"
+                    value={country.dialCode}
+                    onChange={(e) => setCountry(COUNTRIES.find((c) => c.dialCode === e.target.value) ?? COUNTRIES[0])}
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={`${c.name}-${c.dialCode}`} value={c.dialCode}>
+                        {c.name} ({c.dialCode})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    className="input"
+                    style={{ flex: 1 }}
+                    placeholder="6XX XXX XXX"
+                    autoComplete="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
               ) : (
                 <input
                   type="email"

@@ -20,7 +20,7 @@ export default {
   emptyState: {
     title: 'RiskyC Chat for web',
     body: 'Send and receive messages without keeping your phone online.',
-    hint: 'Use RiskyC Chat on up to 4 linked devices and 1 phone at the same time.',
+    hint: 'Use RiskyC Chat on up to 20 linked devices at the same time.',
     newChat: 'New chat',
   },
   threadSearch: {
