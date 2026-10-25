@@ -1,12 +1,13 @@
 import { faArrowLeft, faCheck, faUserPlus } from '@fortawesome/free-solid-svg-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
 import { Spinner } from '../components/Spinner';
 import { conversationIdFor } from '../features/messaging/conversationId';
-import { lookupByPhone, searchUsers, type UserResult } from '../features/users/api';
+import { useConversationList } from '../features/messaging/useConversationList';
+import { lookupByPhone, type UserResult } from '../features/users/api';
 import { useAuth } from '../features/auth/AuthContext';
 import { COUNTRIES, type Country } from '../lib/countries';
 
@@ -52,9 +53,18 @@ export function NewChatPage() {
   const { userId } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<UserResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [phoneLookup, setPhoneLookup] = useState<PhoneLookupState>({ kind: 'idle' });
+  // No open "search every user by name" endpoint exists anymore — same
+  // privacy model as mobile's new.tsx: a stranger can only be found by
+  // their exact phone number (lookupByPhone below). A typed name just
+  // filters among people you ALREADY have a conversation with, since web
+  // has no device-contacts list to match against like mobile does.
+  const { conversations } = useConversationList(userId);
+  const nameMatches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || looksLikePhoneQuery(q)) return [];
+    return conversations.filter((c) => !c.isGroup && c.otherUserId && c.title.toLowerCase().includes(q));
+  }, [conversations, query]);
   // Same default/role as mobile's new.tsx searchCountry — a bare local
   // number (no leading '+') gets this dial code prepended before lookup,
   // since the backend matches the full internationally-formatted number
@@ -91,23 +101,18 @@ export function NewChatPage() {
     };
   }, [query, searchCountry]);
 
-  async function runSearch(q: string) {
-    setQuery(q);
-    if (looksLikePhoneQuery(q)) return;
-    setIsSearching(true);
-    try {
-      setResults(await searchUsers(q));
-    } finally {
-      setIsSearching(false);
-    }
-  }
-
   function openChatWith(user: UserResult) {
     if (!userId) return;
     const conversationId = conversationIdFor(userId, user.userId);
     navigate(`/chats/${conversationId}`, {
       state: { title: user.displayName || user.phoneNumber || user.email || 'Chat', avatarObjectKey: user.avatarObjectKey, recipientId: user.userId },
     });
+  }
+
+  function openChatWithRecipientId(recipientId: string, title: string, avatarObjectKey: string | null) {
+    if (!userId) return;
+    const conversationId = conversationIdFor(userId, recipientId);
+    navigate(`/chats/${conversationId}`, { state: { title, avatarObjectKey, recipientId } });
   }
 
   return (
@@ -136,9 +141,9 @@ export function NewChatPage() {
       </div>
       <input
         className="input"
-        placeholder="Search by name, email or phone"
+        placeholder="Search your chats by name, or type a phone number"
         value={query}
-        onChange={(e) => runSearch(e.target.value)}
+        onChange={(e) => setQuery(e.target.value)}
         autoFocus
       />
 
@@ -192,11 +197,20 @@ export function NewChatPage() {
         </div>
       ) : (
         <div style={{ marginTop: 12 }}>
-          {isSearching && <p style={{ color: 'var(--text-muted)' }}>Searching…</p>}
-          {results.map((u) => (
-            <div key={u.userId} className="conversation-row" style={{ borderRadius: 10 }} onClick={() => openChatWith(u)}>
-              <Avatar label={u.displayName || u.phoneNumber || u.email || '?'} objectKey={u.avatarObjectKey} size={40} />
-              <div className="conversation-row-title">{u.displayName || u.phoneNumber || u.email}</div>
+          {query.trim() && nameMatches.length === 0 && (
+            <p style={{ color: 'var(--text-muted)', padding: '8px 4px' }}>
+              No match in your existing chats — try their exact phone number instead.
+            </p>
+          )}
+          {nameMatches.map((c) => (
+            <div
+              key={c.conversationId}
+              className="conversation-row"
+              style={{ borderRadius: 10 }}
+              onClick={() => openChatWithRecipientId(c.otherUserId!, c.title, c.avatarObjectKey)}
+            >
+              <Avatar label={c.title} objectKey={c.avatarObjectKey} size={40} />
+              <div className="conversation-row-title">{c.title}</div>
             </div>
           ))}
         </div>
