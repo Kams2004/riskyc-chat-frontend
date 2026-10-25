@@ -46,8 +46,9 @@ import { forwardMessage } from '../features/messaging/forward';
 import { conversationIdFor, UNRESOLVED_PERSON_PLACEHOLDER } from '../features/messaging/conversationId';
 import { searchInConversation, type AttachmentItem, type MessageEnvelope, type SearchResult } from '../features/messaging/api';
 import { useConversation, type ReplyToDraft } from '../features/messaging/useConversation';
-import { useConversationList } from '../features/messaging/useConversationList';
+import { useConversationList, invalidateConversationName } from '../features/messaging/useConversationList';
 import { uploadMedia } from '../features/media/api';
+import { getSystemAccountInfo } from '../features/systemAccount/api';
 import { compressImageForSend, exceedsMediaSizeLimit } from '../lib/mediaCompression';
 import { parseOverlay } from '../lib/overlay';
 import { blockUser, getUser, reportUser } from '../features/users/api';
@@ -132,9 +133,25 @@ export function ConversationThreadPage({
     groupId,
   });
   const navigate = useNavigate();
-  const { conversations } = useConversationList(userId);
+  const { conversations, reload: reloadConversationList } = useConversationList(userId);
   const wallpaper = useWallpaperVariant();
   const { t } = useTranslation('web');
+
+  // The official account is read-only/broadcast-only — mirrors mobile's
+  // identical check (see contact-details.tsx). Only meaningful for a 1:1
+  // thread; a group can never itself be the system account.
+  const [isSystemAccountRecipient, setIsSystemAccountRecipient] = useState(false);
+  useEffect(() => {
+    if (isGroup || !recipientId) {
+      setIsSystemAccountRecipient(false);
+      return;
+    }
+    let cancelled = false;
+    getSystemAccountInfo()
+      .then((info) => { if (!cancelled) setIsSystemAccountRecipient(!!info && info.userId === recipientId); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isGroup, recipientId]);
 
   const [draft, setDraft] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -681,7 +698,7 @@ export function ConversationThreadPage({
             <div className="thread-header-status">{typingLabel || (isGroup ? 'Group' : '')}</div>
           </div>
         </div>
-        {!isGroup && recipientId && (
+        {!isGroup && recipientId && !isSystemAccountRecipient && (
           <>
             <button className="icon-button" title="Voice call" onClick={() => void startCall(recipientId, title, 'AUDIO')}>
               <Icon icon={faPhone} />
@@ -1010,6 +1027,10 @@ export function ConversationThreadPage({
         <div className="composer" style={{ color: 'var(--text-muted)', justifyContent: 'center' }}>
           Only admins can send messages in this group.
         </div>
+      ) : isSystemAccountRecipient ? (
+        <div className="composer" style={{ color: 'var(--text-muted)', justifyContent: 'center' }}>
+          {t('chats:systemAccountReadOnly')}
+        </div>
       ) : (
       <div style={{ position: 'relative' }}>
         {stickerPickerOpen && <StickerPicker onPick={handleStickerSend} onClose={() => setStickerPickerOpen(false)} />}
@@ -1123,6 +1144,10 @@ export function ConversationThreadPage({
         onOpenSearch={() => {
           setInfoPanelView(null);
           setSearchOpen(true);
+        }}
+        onContactRenamed={() => {
+          invalidateConversationName(conversationId);
+          reloadConversationList();
         }}
       />
     )}

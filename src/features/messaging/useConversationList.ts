@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { getGroup } from '../groups/api';
 import { getUser } from '../users/api';
+import { getLocalContactName } from '../../lib/localContacts';
 import { listConversationSummaries, type ConversationSummary } from './api';
 import { otherPartyFrom, UNRESOLVED_TITLE_PLACEHOLDER } from './conversationId';
 
@@ -19,6 +20,11 @@ export type ConversationListItem = {
 // resolved names to fall back on; re-resolving per session (not persisted
 // across reloads) is an acceptable tradeoff for a desktop-context client.
 const nameCache = new Map<string, { title: string; avatarObjectKey: string | null }>();
+
+/** Drops a cached title so the next reload() re-resolves it — called after saving a local contact-name override, which would otherwise stay stuck behind this session-long cache. */
+export function invalidateConversationName(conversationId: string) {
+  nameCache.delete(conversationId);
+}
 
 async function resolve(summary: ConversationSummary, myUserId: string): Promise<ConversationListItem> {
   const cached = nameCache.get(summary.conversationId);
@@ -44,7 +50,7 @@ async function resolve(summary: ConversationSummary, myUserId: string): Promise<
     } else {
       const otherId = summary.otherUserId ?? otherPartyFrom(summary.conversationId, myUserId);
       const user = await getUser(otherId);
-      title = user.displayName || user.phoneNumber || UNRESOLVED_TITLE_PLACEHOLDER;
+      title = getLocalContactName(otherId) || user.displayName || user.phoneNumber || UNRESOLVED_TITLE_PLACEHOLDER;
       avatarObjectKey = user.avatarObjectKey;
     }
     nameCache.set(summary.conversationId, { title, avatarObjectKey });

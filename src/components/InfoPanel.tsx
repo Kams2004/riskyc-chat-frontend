@@ -1,4 +1,4 @@
-import { faAngleLeft, faMagnifyingGlass, faPhone, faVideo, faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faCheck, faMagnifyingGlass, faPencil, faPhone, faVideo, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -9,7 +9,9 @@ import { useCall } from '../features/calls/CallContext';
 import { useMediaUrl } from '../features/media/useMediaUrl';
 import { getCommonGroups, type GroupResult } from '../features/groups/api';
 import { getMediaSummary, searchInConversation, type MediaSummaryItem, type SearchResult } from '../features/messaging/api';
+import { getSystemAccountInfo } from '../features/systemAccount/api';
 import { blockUser, getUser, listBlockedUsers, reportUser, unblockUser, type UserResult } from '../features/users/api';
+import { getLocalContactName, setLocalContactName } from '../lib/localContacts';
 
 export type InfoPanelView = 'contact' | 'media';
 
@@ -32,11 +34,13 @@ function ContactView({
   recipientId,
   onOpenMedia,
   onOpenSearch,
+  onContactRenamed,
 }: {
   conversationId: string;
   recipientId: string;
   onOpenMedia: () => void;
   onOpenSearch: () => void;
+  onContactRenamed: () => void;
 }) {
   const { startCall } = useCall();
   const [user, setUser] = useState<UserResult | null>(null);
@@ -44,22 +48,41 @@ function ContactView({
   const [groups, setGroups] = useState<GroupResult[]>([]);
   const [isBlocked, setIsBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSystemAccount, setIsSystemAccount] = useState(false);
+  const [localName, setLocalName] = useState<string | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
 
   useEffect(() => {
     setIsLoading(true);
+    setIsEditingName(false);
     Promise.all([
       getUser(recipientId),
       getMediaSummary(conversationId, 'IMAGE,VIDEO,FILE', 4).catch(() => []),
       getCommonGroups(recipientId).catch(() => []),
       listBlockedUsers().catch(() => []),
-    ]).then(([userResult, mediaResult, groupsResult, blockedResult]) => {
+      getSystemAccountInfo().catch(() => null),
+    ]).then(([userResult, mediaResult, groupsResult, blockedResult, systemInfo]) => {
       setUser(userResult);
       setMedia(mediaResult);
       setGroups(groupsResult);
       setIsBlocked(blockedResult.some((b) => b.userId === recipientId));
+      setIsSystemAccount(!!systemInfo && systemInfo.userId === recipientId);
+      const saved = getLocalContactName(recipientId);
+      setLocalName(saved);
+      setNameInput(saved || userResult.displayName || '');
       setIsLoading(false);
     });
   }, [conversationId, recipientId]);
+
+  function saveLocalName() {
+    const trimmed = nameInput.trim();
+    if (!trimmed) return;
+    setLocalContactName(recipientId, trimmed);
+    setLocalName(trimmed);
+    setIsEditingName(false);
+    onContactRenamed();
+  }
 
   async function handleToggleBlock() {
     const name = user?.displayName || 'this person';
@@ -83,7 +106,7 @@ function ContactView({
     return <div className="loading-center"><Spinner /></div>;
   }
 
-  const name = user.displayName || 'Unnamed user';
+  const name = localName || user.displayName || 'Unnamed user';
 
   return (
     <>
@@ -91,17 +114,46 @@ function ContactView({
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <Avatar label={name} objectKey={user.avatarObjectKey} size={92} />
         </div>
-        <h2 style={{ marginBottom: 4 }}>{name}</h2>
+        {isEditingName ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}>
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveLocalName(); if (e.key === 'Escape') setIsEditingName(false); }}
+              style={{ fontSize: 18, textAlign: 'center' }}
+            />
+            <button className="icon-button" title="Save" onClick={saveLocalName}>
+              <Icon icon={faCheck} />
+            </button>
+            <button className="icon-button" title="Cancel" onClick={() => setIsEditingName(false)}>
+              <Icon icon={faXmark} />
+            </button>
+          </div>
+        ) : (
+          <h2
+            style={{ marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}
+            onClick={() => { setNameInput(localName || user.displayName || ''); setIsEditingName(true); }}
+            title="Tap to save with your own name — this only changes what you see"
+          >
+            {name}
+            <Icon icon={faPencil} style={{ fontSize: 13, color: 'var(--text-muted)' }} />
+          </h2>
+        )}
         {!!user.phoneNumber && <p style={{ color: 'var(--text-muted)', margin: 0 }}>{user.phoneNumber}</p>}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', gap: 32, paddingBottom: 20, borderBottom: '1px solid var(--hairline)' }}>
-        <button className="icon-button" title="Voice call" onClick={() => void startCall(recipientId, name, 'AUDIO')}>
-          <Icon icon={faPhone} />
-        </button>
-        <button className="icon-button" title="Video call" onClick={() => void startCall(recipientId, name, 'VIDEO')}>
-          <Icon icon={faVideo} />
-        </button>
+        {!isSystemAccount && (
+          <>
+            <button className="icon-button" title="Voice call" onClick={() => void startCall(recipientId, name, 'AUDIO')}>
+              <Icon icon={faPhone} />
+            </button>
+            <button className="icon-button" title="Video call" onClick={() => void startCall(recipientId, name, 'VIDEO')}>
+              <Icon icon={faVideo} />
+            </button>
+          </>
+        )}
         <button className="icon-button" title="Search in conversation" onClick={onOpenSearch}>
           <Icon icon={faMagnifyingGlass} />
         </button>
@@ -248,6 +300,7 @@ export function InfoPanel({
   initialView,
   onClose,
   onOpenSearch,
+  onContactRenamed,
 }: {
   conversationId: string;
   recipientId?: string;
@@ -255,6 +308,8 @@ export function InfoPanel({
   onClose: () => void;
   /** Search now happens inline in the thread itself (see ConversationThread's own search bar), not as a panel view — this closes the panel and opens that instead. */
   onOpenSearch: () => void;
+  /** Fired after saving a local contact-name override, so the caller can invalidate its own cached title and refresh the sidebar/thread header. */
+  onContactRenamed: () => void;
 }) {
   const { t } = useTranslation('web');
   const viewTitle: Record<InfoPanelView, string> = { contact: t('infoPanel.contactInfo'), media: t('infoPanel.mediaLinksDocs') };
@@ -304,6 +359,7 @@ export function InfoPanel({
             recipientId={recipientId}
             onOpenMedia={() => push('media')}
             onOpenSearch={onOpenSearch}
+            onContactRenamed={onContactRenamed}
           />
         )}
         {view === 'media' && <MediaView conversationId={conversationId} />}
