@@ -7,6 +7,7 @@ import { Icon } from '../components/Icon';
 import { ProgressBar } from '../components/ProgressBar';
 import * as authApi from '../features/auth/api';
 import { useAuth } from '../features/auth/AuthContext';
+import { takePostSignInPath } from '../features/contactLink/pendingContactLink';
 import type { VerifyOtpResponse } from '../features/auth/api';
 import { COUNTRIES, type Country } from '../lib/countries';
 import { currentDeviceLabel } from '../lib/deviceLabel';
@@ -156,7 +157,7 @@ export function SignInPage() {
     completeSystemLogin(res);
     setDoneMessage('Welcome back — redirecting to your chats.');
     setStep('done');
-    setTimeout(() => navigate('/chats', { replace: true }), 600);
+    setTimeout(() => navigate(takePostSignInPath(), { replace: true }), 600);
   }
 
   async function sendCode(): Promise<'ok' | 'sms_trial_limit' | 'error' | { immediate: VerifyOtpResponse }> {
@@ -199,7 +200,7 @@ export function SignInPage() {
       completeSystemLogin(result.immediate);
       setDoneMessage('Signed in.');
       setStep('done');
-      setTimeout(() => navigate('/chats', { replace: true }), 600);
+      setTimeout(() => navigate(takePostSignInPath(), { replace: true }), 600);
       return;
     }
     if (result === 'sms_trial_limit') {
@@ -232,7 +233,7 @@ export function SignInPage() {
           : 'Welcome back — redirecting to your chats.'
       );
       setStep('done');
-      setTimeout(() => navigate('/chats', { replace: true }), 900);
+      setTimeout(() => navigate(takePostSignInPath(), { replace: true }), 900);
     } catch (e) {
       // ApiError.message is a raw "Request to <url> failed: <status> <body>"
       // diagnostic string, not something to show a user — a 401 here just

@@ -13,6 +13,7 @@ import { ThemeProvider } from './lib/ThemeContext';
 import { AccountPage } from './pages/Account';
 import { CallsPage } from './pages/Calls';
 import { ChangeIdentifierPage } from './pages/ChangeIdentifier';
+import { ContactPage } from './pages/Contact';
 import { ConversationListPage } from './pages/ConversationList';
 import { DevicesPage } from './pages/Devices';
 import { InvitePage } from './pages/Invite';
@@ -45,6 +46,9 @@ function AppRoutes() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/invite" element={<InvitePage />} />
+      {/* A shop's "Contact on RiskyC Chat" link — not behind RequireAuth: signed out, it remembers itself and sends
+          the visitor to sign in, which then comes back here. */}
+      <Route path="/contact" element={<ContactPage />} />
       <Route path="/permissions" element={<PermissionsPage />} />
       <Route
         path="/chats/new"
